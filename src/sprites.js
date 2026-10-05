@@ -2,8 +2,8 @@
 // the sprite width are padded, so art can be written without trailing dots.
 
 // ── Neymario ──────────────────────────────────────────────────────────────
-// H blond mohawk, D shaved sides, S skin, Y Brazil yellow, G green trim,
-// B blue shorts, W socks, P pink boots, K eyes/outline.
+// H blond mohawk, D shaved sides, S skin, Y Brazil yellow, G green collar and
+// sleeves, B blue shorts and badge, W socks, P pink boots, K eyes/outline.
 
 const SMALL_HEAD = [
   '......HHHH',
@@ -13,10 +13,11 @@ const SMALL_HEAD = [
   '....DSSSSSSSS',
   '.....SSSSSS',
 ];
+// Brazil home kit: yellow shirt, green collar and sleeves, blue badge.
 const SMALL_BODY = [
-  '.....GYYYYG',
-  '...YYYYYYYYYY',
-  '..SYYYYGYYYYYS',
+  '.....GGGGGG',
+  '...GGYYGGYYGG',
+  '..SGYYYYYYBYGS',
   '..S.YYYYYYYY.S',
 ];
 const SMALL_LEGS = {
@@ -93,11 +94,11 @@ const BIG_HEAD = [
   '......SSSS',
 ];
 const BIG_BODY = [
-  '....GGYYYYGG',
-  '...YYYYYYYYYY',
-  '..YYYYYYYYYYYY',
-  '.SYYYYYYYGGYYYS',
-  '.SYYYYYYYGGYYYS',
+  '....GGGYYGGG',
+  '...GGYYGGYYGG',
+  '..GGYYYYYYYYGG',
+  '.SGYYYYYYYBBYGS',
+  '.SGYYYYYYYBBYGS',
   '.SYYYYYYYYYYYYS',
   '.SS.YYYYYYYYY.SS',
   '.S..YYYYYYYYY..S',
@@ -166,8 +167,8 @@ export const NEY_BIG = {
   jump: [...BIG_HEAD, ...BIG_BODY, ...BIG_LEGS.jump],
   crouch: [
     ...BIG_HEAD,
-    '..YYYYYYYYYYYY',
-    '.SYYYYYYYYYYYYS',
+    '..GGYYGGYYYYGG',
+    '.SGYYYYYYYBBGS',
     '.SBBBBBBBBBBBBS',
     '..WWWW....WWWW',
     '.PPPPP....PPPPP',
