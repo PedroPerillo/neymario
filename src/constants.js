@@ -20,6 +20,17 @@ export const PHYS = {
   maxFall: 4.5,
   stompBounce: 3.6,
   stompBounceHeld: 5.0,
+  // Extra moves.
+  poundWindup: 12,
+  poundSpeed: 6,
+  wallSlide: 1.2,
+  wallGraceFrames: 6,
+  wallJumpX: 2.2,
+  wallLock: 12,
+  rollSpeed: 3.2,
+  rollFrames: 45,
+  glideFall: 1.0,
+  flapVel: 3.6,
 };
 
 export const PLAYER_W = 12;

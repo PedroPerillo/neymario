@@ -2,6 +2,7 @@ import { ROWS, TILE, GROUND_ROW } from './constants.js';
 
 /*
  * Tile chars stored in a built level:
+ *   '(' ')' sideways pipe mouth (top/bottom)     '-' '_' sideways pipe body (top/bottom)
  *   ' ' air      '#' ground      'B' brick       '?' prize block (shows a World Cup trophy)   'U' used block
  *   'S' solid    'h' hidden blk  'C' coin        '=' bridge           'L' lava
  *   '[' ']' pipe top (left/right)                '{' '}' pipe body (left/right)
@@ -39,6 +40,9 @@ export class LevelBuilder {
     this.castleX = null;
     this.axe = null;
     this.bridge = null;
+    this.warp = null;
+    this.exit = null;
+    this.sideExit = null;
   }
 
   place(x, y, str) {
@@ -95,6 +99,34 @@ export class LevelBuilder {
     return this;
   }
 
+  /** A pipe Neymario can go down (↓ on top) into the level's hidden bonus room. */
+  warpPipe(x, h) {
+    this.warp = { x, top: GROUND_ROW - h };
+    return this.pipe(x, h);
+  }
+
+  /** The pipe he pops back out of after the bonus room. */
+  exitPipe(x, h) {
+    this.exit = { x, top: GROUND_ROW - h };
+    return this.pipe(x, h);
+  }
+
+  /** Bonus-room exit: a sideways pipe mouth at column x (rows row, row+1), running to the right wall and up. */
+  sidePipe(x, row) {
+    this.tiles[row][x] = '(';
+    this.tiles[row + 1][x] = ')';
+    for (let tx = x + 1; tx < this.width; tx++) {
+      this.tiles[row][tx] = '-';
+      this.tiles[row + 1][tx] = '_';
+    }
+    for (let y = 3; y < row; y++) {
+      this.tiles[y][x + 1] = '{';
+      if (x + 2 < this.width) this.tiles[y][x + 2] = '}';
+    }
+    this.sideExit = { x, row };
+    return this;
+  }
+
   /** Enemy standing on top of `row` - 1 (defaults to the ground). */
   enemy(type, x, row = GROUND_ROW - 1) {
     this.spawns.push({ type, x: x * TILE, bottom: (row + 1) * TILE });
@@ -112,11 +144,16 @@ export class LevelBuilder {
     return this;
   }
 
-  /** Corner-flag pole at column x on a solid base, locker room ("vestiário") 5 tiles after. */
+  /** Corner-flag pole at column x on a solid base, with the goal Neymario scores in 5 tiles after. */
   goal(x) {
     this.flagX = x;
     this.place(x, GROUND_ROW - 1, 'S');
-    this.castleX = x + 5;
+    return this.net(x + 5);
+  }
+
+  /** The goal (side view, 5 tiles deep) for the end-of-level celebration. */
+  net(x) {
+    this.castleX = x;
     return this;
   }
 
@@ -133,7 +170,7 @@ export class LevelBuilder {
   }
 
   finish(def) {
-    const { build, ...meta } = def;
+    const { build, bonus, ...meta } = def;
     return {
       ...meta,
       width: this.width,
@@ -145,6 +182,9 @@ export class LevelBuilder {
       castleX: this.castleX,
       axe: this.axe,
       bridge: this.bridge,
+      warp: this.warp,
+      exit: this.exit,
+      sideExit: this.sideExit,
       spawn: { x: 40, bottom: GROUND_ROW * TILE },
     };
   }
@@ -156,6 +196,22 @@ export function buildLevel(def) {
   def.build(builder);
   return builder.finish(def);
 }
+
+/**
+ * A one-screen underground bonus room, like the original's coin rooms. `rows`
+ * are [x, y, chars] placements; the exit is the sideways pipe on the right.
+ */
+const bonusRoom = (rows) => ({
+  width: 16,
+  theme: 'tunnel',
+  build(B) {
+    B.ground(0, 15);
+    B.fill(0, 2, 16, 1, 'B');
+    B.fill(0, 3, 1, 10, 'B');
+    for (const [x, y, chars] of rows) B.place(x, y, chars);
+    B.sidePipe(13, 11);
+  },
+});
 
 const CROATIA = {
   kit: { shirt: '#e8202a', shirt2: '#ffffff', shorts: '#ffffff', skin: '#f1c27d', hair: '#6b4a2a' },
@@ -173,7 +229,9 @@ export const LEVELS = [
     realScore: 'BRA 3-1 CRO',
     tip: 'GRAB THE FOOTBALL TO GROW!',
     theme: 'day',
+    power: 'fire',
     ...CROATIA,
+    bonus: bonusRoom([[4, 12, 'BBBBBBB'], [4, 11, 'CCCCCCC'], [4, 10, 'CCCCCCC'], [4, 6, 'CCCCCCC']]),
     width: 214,
     build(L) {
       L.ground(0, 70).ground(73, 88).ground(92, 155).ground(158, 213);
@@ -181,7 +239,7 @@ export const LEVELS = [
       L.place(20, 9, 'B?B?B').place(22, 5, '?');
       L.enemy('defender', 24);
       L.pipe(28, 2).pipe(38, 3).enemy('defender', 42).pipe(46, 4);
-      L.enemy('defender', 51).enemy('defender', 53).pipe(57, 4);
+      L.enemy('defender', 51).enemy('defender', 53).warpPipe(57, 4);
       L.place(64, 8, '1');
       L.place(77, 9, 'BMB').place(80, 5, 'BBBBBBBB');
       L.enemy('defender', 81, 4).enemy('defender', 83, 4);
@@ -195,7 +253,7 @@ export const LEVELS = [
       L.place(130, 5, 'B??B').place(131, 9, 'BB');
       L.stairs(136, 4, 1).stairs(142, 4, -1);
       L.stairs(151, 4, 1).column(155, 4).stairs(158, 4, -1);
-      L.pipe(165, 2).place(170, 9, 'BB?B');
+      L.exitPipe(165, 2).place(170, 9, 'BB?B');
       L.enemy('defender', 175).enemy('defender', 177).pipe(181, 2);
       L.stairs(183, 8, 1).column(191, 8);
       L.goal(200);
@@ -211,6 +269,8 @@ export const LEVELS = [
     realScore: 'BRA 2-1 COL',
     tip: 'STOMP A REFEREE, THEN KICK THE VAR!',
     theme: 'dusk',
+    power: 'fire',
+    bonus: bonusRoom([[3, 12, 'CCCCCCCCC'], [3, 9, 'BBBBBBB'], [3, 8, 'CCCCCCC'], [5, 5, 'CcC']]),
     // Away kit, so defenders can't be mistaken for Neymario's yellow and blue.
     kit: { shirt: '#14204a', shirt2: '#14204a', shorts: '#ffffff', skin: '#c68642', hair: '#2a1a0a' },
     flag: { dir: 'h', colors: ['#fcd116', '#fcd116', '#003893', '#ce1126'] },
@@ -224,13 +284,13 @@ export const LEVELS = [
       L.place(38, 9, 'B?B').place(39, 5, '?').enemy('defender', 42);
       L.place(52, 9, 'BcB');
       L.enemy('defender', 56).enemy('defender', 58).enemy('defender', 60);
-      L.pipe(64, 2).pipe(70, 4).enemy('referee', 75);
+      L.warpPipe(64, 2).pipe(70, 4).enemy('referee', 75);
       L.place(85, 9, '?').place(84, 5, 'CCCC');
       L.stairs(94, 3, 1).place(100, 9, 'B?B').place(100, 5, 'CCC');
       L.enemy('defender', 104).enemy('referee', 108);
       L.place(112, 9, 'M').place(115, 9, 'BBBB').place(115, 5, 'B*BB');
       L.enemy('defender', 116, 8);
-      L.pipe(124, 3).enemy('defender', 127).enemy('defender', 129);
+      L.exitPipe(124, 3).enemy('defender', 127).enemy('defender', 129);
       L.place(132, 10, 'SS');
       L.stairs(139, 4, 1).column(143, 4).stairs(144, 4, -1);
       L.enemy('referee', 152).place(156, 9, '?B?B?');
@@ -248,8 +308,10 @@ export const LEVELS = [
     opponent: 'MEXICO',
     venue: 'SAMARA',
     realScore: 'BRA 2-0 MEX',
-    tip: 'MIND THE GAPS. NO ROLLING ALLOWED!',
+    tip: 'MIOJO HAIR: RUN, THEN DOWN TO ROLL!',
     theme: 'day',
+    power: 'roll',
+    bonus: bonusRoom([[3, 12, 'C.C.C.C.C'], [3, 10, 'SSSSSSS'], [3, 9, 'CCCCCCC'], [4, 6, 'CCCCC'], [5, 4, 'C1C']]),
     kit: { shirt: '#006847', shirt2: '#006847', shorts: '#ffffff', skin: '#c68642', hair: '#2a1a0a' },
     flag: { dir: 'v', colors: ['#006847', '#ffffff', '#ce1126'] },
     width: 214,
@@ -259,12 +321,12 @@ export const LEVELS = [
       L.place(33, 10, 'SSS').place(38, 8, 'SSSS').place(38, 7, 'CCCC').place(44, 10, 'SSS');
       L.ground(48, 70);
       L.enemy('defender', 52).enemy('defender', 54).place(56, 9, 'B?B?B');
-      L.pipe(63, 3).enemy('referee', 67);
+      L.warpPipe(63, 3).enemy('referee', 67);
       L.place(73, 10, 'SS').place(77, 8, 'SS').place(81, 6, 'SSS').place(81, 5, 'CCC');
       L.place(86, 8, 'SS').place(90, 10, 'SS');
       L.ground(94, 130);
       L.enemy('defender', 98).enemy('defender', 100).place(104, 9, 'B*B');
-      L.pipe(110, 4).enemy('referee', 114);
+      L.exitPipe(110, 4).enemy('referee', 114);
       L.place(118, 9, 'BBBBBB').place(118, 5, '?BBMBB');
       L.enemy('defender', 120, 8).enemy('defender', 122, 8).pipe(127, 2);
       L.place(133, 9, 'SSSS').enemy('defender', 135, 8);
@@ -285,8 +347,10 @@ export const LEVELS = [
     opponent: 'BELGIUM',
     venue: 'KAZAN',
     realScore: 'BRA 1-2 BEL',
-    tip: 'A NIGHT TO REWRITE HISTORY!',
+    tip: 'ROLL RIGHT THROUGH THE RED DEVILS!',
     theme: 'night',
+    power: 'roll',
+    bonus: bonusRoom([[4, 12, 'BBBBBBB'], [4, 11, 'CCCCCCC'], [4, 8, 'CCCCCCC'], [4, 5, 'CCCCCCC']]),
     kit: { shirt: '#e30613', shirt2: '#b00010', shorts: '#e30613', skin: '#f1c27d', hair: '#3b2716' },
     flag: { dir: 'v', colors: ['#111111', '#fdda24', '#ef3340'] },
     width: 214,
@@ -295,13 +359,13 @@ export const LEVELS = [
       L.place(10, 9, 'M');
       L.enemy('defender', 16).enemy('defender', 18).enemy('defender', 20);
       L.place(22, 9, 'BBBBB').place(23, 5, 'B?B').enemy('referee', 28);
-      L.pipe(32, 3).enemy('defender', 36).pipe(40, 4);
+      L.pipe(32, 3).enemy('defender', 36).warpPipe(40, 4);
       L.enemy('referee', 45).enemy('defender', 48);
       L.stairs(55, 4, 1).column(59, 4).column(60, 4).stairs(63, 4, -1);
       L.place(72, 9, '?c?').enemy('referee', 76);
       L.enemy('defender', 80).enemy('defender', 82);
       L.place(86, 9, 'BB*BB').place(86, 5, 'CCCCC');
-      L.pipe(93, 2).enemy('defender', 96).enemy('defender', 98);
+      L.exitPipe(93, 2).enemy('defender', 96).enemy('defender', 98);
       L.place(108, 9, 'M').enemy('referee', 112).enemy('referee', 116);
       L.place(120, 9, 'BBBB').place(120, 5, 'BBBB');
       L.enemy('defender', 121, 4).enemy('defender', 123, 4);
@@ -322,20 +386,22 @@ export const LEVELS = [
     opponent: 'SERBIA',
     venue: 'LUSAIL',
     realScore: 'BRA 2-0 SRB',
-    tip: 'CROSS THE BRICK BRIDGES!',
+    tip: 'POMBO FEATHER: HOLD JUMP TO GLIDE!',
     theme: 'desert',
+    power: 'pombo',
+    bonus: bonusRoom([[3, 12, 'CCCCCCCCC'], [3, 10, 'B.B.B.B.B'], [3, 7, 'CCCCCCCCC'], [3, 4, 'CCCCCCCCC']]),
     kit: { shirt: '#c6363c', shirt2: '#c6363c', shorts: '#0c4076', skin: '#f1c27d', hair: '#3b2716' },
     flag: { dir: 'h', colors: ['#c6363c', '#0c4076', '#ffffff'] },
     width: 214,
     build(L) {
       L.ground(0, 40).ground(62, 100).ground(122, 150).ground(158, 213);
       L.place(8, 9, '?M?').enemy('defender', 15).enemy('defender', 17);
-      L.pipe(22, 3).enemy('referee', 28).place(31, 9, 'B1B').place(36, 9, 'BBB');
+      L.warpPipe(22, 3).enemy('referee', 28).place(31, 9, 'B1B').place(36, 9, 'BBB');
       L.place(41, 10, 'BBBBBB..BBBBB..BBBBB').place(41, 6, 'CCCCCC..CCCCC..CCCCC');
       L.enemy('defender', 44, 9).enemy('defender', 51, 9).enemy('referee', 57, 9);
       L.place(66, 9, 'M').place(70, 9, 'BBBBBBBB').place(70, 5, 'B?B?B?B?');
       L.enemy('defender', 72, 8).enemy('defender', 75, 8);
-      L.pipe(82, 3).enemy('referee', 86).pipe(90, 4);
+      L.exitPipe(82, 3).enemy('referee', 86).pipe(90, 4);
       L.enemy('defender', 94).enemy('defender', 96);
       L.place(102, 10, 'SSS').place(107, 8, 'BBBB').place(107, 5, 'CCCC');
       L.place(113, 10, 'SSS').place(118, 9, 'SS');
@@ -357,8 +423,10 @@ export const LEVELS = [
     opponent: 'CROATIA',
     venue: 'AL RAYYAN',
     realScore: 'BRA 1-1 CRO (2-4 PENS)',
-    tip: 'NO PENALTIES THIS TIME. FINISH IT!',
+    tip: 'FEATHER: JUMP AGAIN IN MID-AIR TO FLAP!',
     theme: 'night',
+    power: 'pombo',
+    bonus: bonusRoom([[4, 12, 'BBBBBBB'], [4, 11, 'CCCCCCC'], [4, 10, 'CCCCCCC'], [5, 6, 'CcCcC']]),
     ...CROATIA,
     width: 214,
     build(L) {
@@ -369,11 +437,11 @@ export const LEVELS = [
       L.place(37, 10, 'S');
       L.place(44, 9, 'BBBBBB').place(44, 5, 'c?BB?B').enemy('referee', 46, 8);
       L.enemy('defender', 50).enemy('defender', 52).enemy('defender', 54);
-      L.pipe(58, 3).pipe(64, 4).enemy('referee', 69).enemy('referee', 72);
+      L.pipe(58, 3).warpPipe(64, 4).enemy('referee', 69).enemy('referee', 72);
       L.place(81, 9, 'M');
       L.stairs(90, 4, 1).column(94, 4).stairs(95, 4, -1);
       L.enemy('defender', 100).enemy('defender', 102).enemy('defender', 104).enemy('referee', 108);
-      L.place(110, 9, 'B*B').pipe(115, 2);
+      L.place(110, 9, 'B*B').exitPipe(115, 2);
       L.place(122, 9, 'SSS');
       L.place(130, 9, '?BBB?').place(131, 5, 'BMB').enemy('referee', 134);
       L.enemy('defender', 138).enemy('defender', 140);
@@ -395,6 +463,7 @@ export const LEVELS = [
     realScore: null,
     tip: 'BEAT MBAPPE DITADOR. GRAB THE CUP!',
     theme: 'castle',
+    power: 'fire',
     kit: { shirt: '#21304d', shirt2: '#21304d', shorts: '#ffffff', skin: '#8d5524', hair: '#1a1008' },
     flag: { dir: 'v', colors: ['#0055a4', '#ffffff', '#ef4135'] },
     width: 128,
@@ -413,7 +482,7 @@ export const LEVELS = [
       L.lava(83, 100, 14).bridgeSpan(83, 100);
       L.fill(85, 3, 16, 5, '#');
       L.boss(96);
-      L.ground(101, 127).trophy(101);
+      L.ground(101, 127).trophy(101).net(114);
     },
   },
 ];

@@ -8,14 +8,35 @@ to win the Hexa.
 | --- | --- |
 | Mario | Neymario (Brazil kit, blond mohawk, pink boots) |
 | Super Mushroom | Football |
-| Fire Flower | Blaze flame emblem (shoots flaming footballs) |
+| Fire Flower | Each World Cup has its own transformation (see below) |
 | "?" block | Prize block marked with a World Cup trophy |
 | Starman | World Cup trophy |
-| 1-UP mushroom | Golden ball |
+| Coins | Golden soccer balls |
+| 1-UP mushroom | Brazil #10 shirt |
 | Goomba | Opposing defender (wears that match's kit) |
 | Koopa / shell | Referee → hides behind a kickable VAR monitor |
-| Flagpole / castle | Corner flag / *vestiário* |
+| Flagpole / castle | Corner flag, then Neymario shoots into the goal: GOOOOL! |
+| Warp pipes & bonus rooms | One pipe per match leads to a hidden tunnel full of golden balls |
 | Bowser / axe | Mbappé Ditador / the World Cup trophy |
+
+## Transformations
+
+Grab a football to grow, then hit another power-up block for that World Cup's power.
+The kit always stays yellow and green; the power shows on the hair and boots.
+
+| World Cup | Power-up | Transformation |
+| --- | --- | --- |
+| 2014 (and the final) | Blaze flame | **Blaze**: X/Shift throws bouncing flaming footballs |
+| 2018 | Cup of *miojo* (instant noodles) | **Miojo hair**: run, then ↓ to do the famous roll through defenders and bricks |
+| 2022 | Pigeon feather | **Pombo**: hold jump to glide, jump again in mid-air to flap |
+
+## Moves
+
+- **Run** (hold X/Shift) and **skid** turns
+- **Crouch** (↓ when big) and **crouch-slide** at speed; you can **crouch-jump** into one-tile gaps
+- **Ground pound**: ↓ in mid-air. Flattens anything below, smashes bricks when big, pops prize blocks
+- **Wall slide & wall jump**: push into a wall while falling, then jump
+- **Pipes**: ↓ on the right pipe drops into a bonus room; walk into its sideways pipe to come back out further on
 
 ## Levels
 
@@ -39,8 +60,9 @@ npm start        # http://localhost:5173
 
 No dependencies and no build step. It's plain ES modules served statically.
 
-Controls: ←/→ move · Z/Space/↑ jump (hold for height) · X/Shift run & shoot Blaze ·
-↓ crouch · Enter start · P/Esc pause · M mute. On touch devices, on-screen buttons appear.
+Controls: ←/→ move · Z/Space/↑ jump (hold for height) · X/Shift run & use power ·
+↓ crouch / enter pipes / ground pound · Enter start & pause · P/Esc pause · M mute.
+On touch devices, on-screen buttons appear.
 
 ## Test
 

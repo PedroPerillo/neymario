@@ -52,6 +52,13 @@ const TRACKS = {
     bass: parse('C3:2 C3:2 G2:2 G2:2 D3:2 D3:2 A2:2 A2:2'),
   },
 };
+// Original walking bass line for the bonus room under the pitch.
+TRACKS.tunnel = {
+  step: 0.12,
+  shaker: false,
+  melody: parse('C4:2 r:2 C5:1 r:1 A#4:2 r:4 G4:2 r:2 F4:1 r:1 G4:2 r:4'),
+  bass: parse('C3:2 C3:2 D#3:2 F3:2 G3:2 F3:2 D#3:2 D3:2'),
+};
 TRACKS.dusk = TRACKS.day;
 TRACKS.night = TRACKS.day;
 TRACKS.desert = TRACKS.day;
@@ -140,6 +147,18 @@ export function createAudio() {
     pause: () => arp(['E5', 'C5', 'E5', 'C5'], 0.06),
     resume: () => arp(['C5', 'E5'], 0.06),
     bossfire: () => noise({ dur: 0.6, vol: 0.3, cutoff: 900 }),
+    pipe: () => [0, 0.1, 0.2].forEach((at) => tone({ type: 'square', from: 300, to: 120, dur: 0.08, vol: 0.18, at })),
+    spin: () => tone({ type: 'triangle', from: 300, to: 900, dur: 0.18, vol: 0.2 }),
+    pound: () => { noise({ dur: 0.18, vol: 0.45, cutoff: 500 }); tone({ type: 'triangle', from: 120, to: 40, dur: 0.2, vol: 0.5 }); },
+    roll: () => noise({ dur: 0.3, vol: 0.15, cutoff: 1200 }),
+    walljump: () => tone({ from: 500, to: 900, dur: 0.1, vol: 0.15 }),
+    flap: () => tone({ type: 'triangle', from: 700, to: 1100, dur: 0.08, vol: 0.2 }),
+    whistle: () => { tone({ type: 'sine', from: 2600, dur: 0.12, vol: 0.12 }); tone({ type: 'sine', from: 2600, dur: 0.35, at: 0.16, vol: 0.12 }); },
+    // Stadium roar: a swelling band of noise under a short fanfare.
+    goal: () => {
+      for (let i = 0; i < 6; i++) noise({ dur: 0.6, vol: 0.18 + i * 0.03, cutoff: 1500 + i * 300, at: i * 0.3 });
+      arp(['C5', 'E5', 'G5', 'C6', 'G5', 'C6', 'E6'], 0.12);
+    },
     bossdie: () => { noise({ dur: 1.0, vol: 0.4, cutoff: 600 }); tone({ type: 'sawtooth', from: 300, to: 40, dur: 1.0, vol: 0.2 }); },
     gameover: () => arp(['G4', 'F4', 'E4', 'D4', 'C4', 'G3', 'C3'], 0.2, { type: 'triangle' }),
     victory: () => arp(['G4', 'C5', 'E5', 'G5', 'E5', 'G5', 'C6', 'G5', 'C6', 'E6'], 0.14),

@@ -9,7 +9,10 @@ export const NO_INPUT = Object.freeze({
 });
 
 const ENEMIES = new Set(['defender', 'referee']);
-const ITEMS = new Set(['football', 'blaze', 'trophy', 'goldball']);
+const ITEMS = new Set(['football', 'blaze', 'noodles', 'feather', 'trophy', 'jersey']);
+// Each World Cup has its own transformation, released by power blocks once Neymario is big.
+const POWER_ITEM = { fire: 'blaze', roll: 'noodles', pombo: 'feather' };
+const ITEM_POWER = { blaze: 'fire', noodles: 'roll', feather: 'pombo' };
 const STAR_FRAMES = 600;
 const INVULN_FRAMES = 120;
 const SHELL_SPEED = 3.5;
@@ -31,7 +34,8 @@ const approach = (v, target, step) => (v < target ? Math.min(v + step, target) :
  * The whole game simulation. Pure state + rules, no DOM: the browser shell
  * feeds it input once per 60 Hz tick and draws whatever state it is in.
  *
- * States: title → intro → play ⇄ (dying | flag | bridge) → gameover | victory.
+ * States: title → intro → play ⇄ (dying | pipe | flag | bridge) → gameover | victory.
+ * A level has a main area and optionally a bonus room reached through a warp pipe.
  */
 export class Game {
   constructor({ sfx = () => {}, seed = 1, levels = LEVELS, highScore = 0 } = {}) {
@@ -71,8 +75,12 @@ export class Game {
   }
 
   loadLevel(index) {
+    const def = this.levels[index];
     this.levelIndex = index;
-    this.level = buildLevel(this.levels[index]);
+    this.areas = { main: buildLevel(def), bonus: def.bonus ? buildLevel({ ...def, ...def.bonus }) : null };
+    this.areaName = 'main';
+    this.mainPending = null;
+    this.level = this.areas.main;
     this.time = this.level.time;
     this.timeTick = 0;
     this.camX = 0;
@@ -81,6 +89,7 @@ export class Game {
     this.pending = this.level.spawns.map((s) => ({ ...s }));
     this.bumps = new Map();
     this.freeze = 0;
+    this.shake = 0;
     this.seq = null;
     this.paused = false;
     this.player = this.makePlayer();
@@ -93,8 +102,12 @@ export class Game {
       x: this.level.spawn.x, y: this.level.spawn.bottom - h, w: PLAYER_W, h,
       vx: 0, vy: 0, size, facing: 1, onGround: false, crouch: false, skid: false,
       invuln: 0, star: 0, grow: 0, throwAnim: 0, anim: 0,
-      dead: false, fell: false, deathDelay: 0, hidden: false,
+      dead: false, fell: false, deathDelay: 0, inPipe: false,
       prevBottom: 0, lastVy: 0,
+      // Extra moves: ground pound (>0 winding up, -1 slamming), wall slide/jump,
+      // the Miojo roll, the feather's glide and mid-air flap.
+      pound: 0, wallDir: 0, wallGrace: 0, wallLock: 0, wallLockDir: 0,
+      rolling: 0, gliding: false, flaps: 1,
     };
   }
 
@@ -124,6 +137,9 @@ export class Game {
         break;
       case 'dying':
         this.updateDying();
+        break;
+      case 'pipe':
+        this.updatePipe();
         break;
       case 'flag':
         this.updateFlag();
@@ -155,6 +171,7 @@ export class Game {
 
   updatePlay(pressed) {
     const p = this.player;
+    if (this.shake > 0) this.shake--;
     if (this.freeze > 0) {
       this.freeze--;
       if (p.grow > 0) p.grow--;
@@ -184,9 +201,16 @@ export class Game {
     const inp = this.input;
     if (p.invuln > 0) p.invuln--;
     if (p.throwAnim > 0) p.throwAnim--;
+    if (p.wallLock > 0) p.wallLock--;
     if (p.star > 0 && --p.star === 0) this.sfx(`music:${this.level.theme}`);
 
-    if (p.size !== 'small' && p.onGround && inp.down !== p.crouch) {
+    if (inp.down && p.onGround && this.tryEnterPipe()) return;
+
+    // The 2018 roll: Miojo-haired Neymario rolls through defenders and bricks.
+    if (p.size === 'roll' && p.onGround && !p.rolling && pressed('down') && Math.abs(p.vx) >= 1.2) this.startRoll();
+    else if (p.rolling > 0 && --p.rolling === 0) this.endRoll();
+
+    if (!p.rolling && p.size !== 'small' && p.onGround && inp.down !== p.crouch) {
       if (inp.down) {
         this.setHeight(SMALL_H);
         p.crouch = true;
@@ -200,7 +224,11 @@ export class Game {
     const max = inp.run ? PHYS.runMax : PHYS.walkMax;
     const accel = inp.run ? PHYS.runAccel : PHYS.walkAccel;
     p.skid = false;
-    if (dir !== 0 && !(p.crouch && p.onGround)) {
+    if (p.rolling) {
+      p.vx = p.facing * PHYS.rollSpeed;
+    } else if (p.pound) {
+      p.vx = 0;
+    } else if (dir !== 0 && !(p.crouch && p.onGround) && !(p.wallLock > 0 && dir === p.wallLockDir)) {
       if (p.onGround) p.facing = dir;
       if (p.vx * dir < 0) {
         p.vx += dir * (p.onGround ? PHYS.skidDecel : PHYS.airTurn);
@@ -214,22 +242,77 @@ export class Game {
       p.vx = approach(p.vx, 0, PHYS.friction);
     }
 
-    if (pressed('jump') && p.onGround) {
-      p.vy = -(PHYS.jumpVel + Math.abs(p.vx) * PHYS.jumpRunBonus);
-      p.onGround = false;
-      this.sfx(p.size === 'small' ? 'jump' : 'jumpBig');
+    if (pressed('jump') && !p.pound) {
+      if (p.onGround) {
+        p.vy = -(PHYS.jumpVel + Math.abs(p.vx) * PHYS.jumpRunBonus);
+        p.onGround = false;
+        this.sfx(p.size === 'small' ? 'jump' : 'jumpBig');
+      } else if (p.wallGrace > 0) {
+        p.vy = -PHYS.jumpVel;
+        p.vx = -p.wallDir * PHYS.wallJumpX;
+        p.facing = -p.wallDir;
+        p.wallLock = PHYS.wallLock;
+        p.wallLockDir = p.wallDir;
+        p.wallGrace = 0;
+        p.wallDir = 0;
+        this.sfx('walljump');
+      } else if (p.size === 'pombo' && p.flaps > 0) {
+        p.vy = -PHYS.flapVel;
+        p.flaps--;
+        this.sfx('flap');
+      }
     }
-    const gravity = p.vy < 0 && inp.jump ? PHYS.gravityHold : PHYS.gravity;
-    p.vy = Math.min(p.vy + gravity, PHYS.maxFall);
+
+    // Ground pound: ↓ in mid-air hangs for a moment, then slams straight down.
+    if (pressed('down') && !p.onGround && !p.pound && !p.rolling) {
+      p.pound = PHYS.poundWindup;
+      p.vx = 0;
+      this.sfx('spin');
+    }
+    p.gliding = false;
+    if (p.pound > 0) {
+      p.vy = 0;
+      if (--p.pound === 0) p.pound = -1;
+    } else if (p.pound < 0) {
+      p.vy = PHYS.poundSpeed;
+    } else {
+      const gravity = p.vy < 0 && inp.jump ? PHYS.gravityHold : PHYS.gravity;
+      p.vy = Math.min(p.vy + gravity, PHYS.maxFall);
+      if (p.wallGrace === PHYS.wallGraceFrames && p.vy > PHYS.wallSlide) p.vy = PHYS.wallSlide;
+      if (p.size === 'pombo' && inp.jump && p.vy > PHYS.glideFall) {
+        p.vy = PHYS.glideFall;
+        p.gliding = true;
+      }
+    }
 
     if (pressed('run') && p.size === 'fire' && !p.crouch) this.throwFireball();
 
     p.prevBottom = p.y + p.h;
     p.lastVy = p.vy;
     const res = moveBody(p, this.level, { hiddenBlocks: true });
-    if (res.wall) p.vx = 0;
+    if (res.wall) {
+      if (p.rolling && !this.rollThrough(res.wall)) this.endRoll();
+      p.vx = 0;
+    }
     p.onGround = res.landed;
     if (res.ceiling.length) this.bumpFromBelow(res.ceiling);
+
+    if (res.landed) {
+      p.flaps = 1;
+      p.wallGrace = 0;
+      p.wallDir = 0;
+      if (p.pound < 0) this.landPound();
+    } else if (res.wall && res.wall === dir && !p.pound && !p.rolling) {
+      p.wallDir = res.wall;
+      p.wallGrace = PHYS.wallGraceFrames;
+    } else if (p.wallGrace > 0 && --p.wallGrace === 0) {
+      p.wallDir = 0;
+    }
+
+    if (this.areaName === 'bonus' && inp.right && res.wall === 1 && p.onGround && this.atSideExit()) {
+      this.beginPipe('right');
+      return;
+    }
 
     if (p.x < this.camX) {
       p.x = this.camX;
@@ -279,6 +362,7 @@ export class Game {
     const p = this.player;
     p.size = size;
     p.crouch = false;
+    p.rolling = 0;
     this.setHeight(size === 'small' ? SMALL_H : BIG_H);
     this.carrySize = size;
   }
@@ -300,6 +384,73 @@ export class Game {
     });
     p.throwAnim = 8;
     this.sfx('fireball');
+  }
+
+  startRoll() {
+    const p = this.player;
+    p.rolling = PHYS.rollFrames;
+    p.crouch = false;
+    this.setHeight(SMALL_H);
+    this.sfx('roll');
+  }
+
+  endRoll() {
+    const p = this.player;
+    p.rolling = 0;
+    if (this.canStand()) this.setHeight(BIG_H);
+    else p.crouch = true; // finished under a low ceiling: stay ducked until there's room
+  }
+
+  /** Rolling into bricks smashes them. Returns true if the way ahead was cleared. */
+  rollThrough(dir) {
+    const p = this.player;
+    const tx = dir > 0 ? Math.ceil((p.x + p.w) / TILE) : Math.floor(p.x / TILE) - 1;
+    const top = Math.floor(p.y / TILE);
+    const bottom = Math.ceil((p.y + p.h) / TILE) - 1;
+    let cleared = false;
+    for (let ty = top; ty <= bottom; ty++) {
+      const ch = tileAt(this.level, tx, ty);
+      if (ch === 'B' && !this.level.contents.has(`${tx},${ty}`)) {
+        this.breakBrick(tx, ty);
+        cleared = true;
+      } else if (isSolidChar(ch)) {
+        return false;
+      }
+    }
+    return cleared;
+  }
+
+  /** The slam lands: smash plain bricks underneath (when big) and keep going, or stop with a thud. */
+  landPound() {
+    const p = this.player;
+    const row = Math.round((p.y + p.h) / TILE);
+    const left = Math.floor(p.x / TILE);
+    const right = Math.ceil((p.x + p.w) / TILE) - 1;
+    let smashed = false;
+    for (let tx = left; tx <= right; tx++) {
+      const ch = tileAt(this.level, tx, row);
+      const hasContent = this.level.contents.has(`${tx},${row}`);
+      if (ch === '?' || (ch === 'B' && hasContent)) this.bumpTile(tx, row);
+      else if (ch === 'B' && p.size !== 'small') {
+        this.breakBrick(tx, row);
+        smashed = true;
+      }
+    }
+    if (smashed) {
+      p.onGround = false;
+      return;
+    }
+    p.pound = 0;
+    this.shake = 10;
+    this.sfx('pound');
+    for (const dx of [-6, p.w + 2]) this.effects.push({ kind: 'puff', x: p.x + dx, y: p.y + p.h - 8, t: 12 });
+  }
+
+  breakBrick(tx, ty) {
+    this.level.tiles[ty][tx] = ' ';
+    this.addDebris(tx, ty);
+    this.addScore(50);
+    this.sfx('break');
   }
 
   hurtPlayer() {
@@ -423,10 +574,7 @@ export class Game {
       this.bumps.set(key, 8);
     } else if (ch === 'B') {
       if (this.player.size !== 'small') {
-        level.tiles[ty][tx] = ' ';
-        this.addDebris(tx, ty);
-        this.addScore(50);
-        this.sfx('break');
+        this.breakBrick(tx, ty);
       } else {
         this.bumps.set(key, 8);
         this.sfx('bump');
@@ -444,9 +592,9 @@ export class Game {
       return;
     }
     const kind = {
-      power: this.player.size === 'small' ? 'football' : 'blaze',
+      power: this.player.size === 'small' ? 'football' : POWER_ITEM[this.level.power ?? 'fire'],
       star: 'trophy',
-      '1up': 'goldball',
+      '1up': 'jersey',
     }[type];
     this.entities.push({
       type: kind, x: tx * TILE + 1, y: ty * TILE, w: 14, h: 16,
@@ -461,7 +609,7 @@ export class Game {
     for (const e of this.entities) {
       if (ENEMIES.has(e.type) && e.state !== 'flip' && e.state !== 'flat' && overlaps(e, zone)) {
         this.flipKill(e, 100);
-      } else if ((e.type === 'football' || e.type === 'goldball') && !e.emerge && overlaps(e, zone)) {
+      } else if ((e.type === 'football' || e.type === 'jersey') && !e.emerge && overlaps(e, zone)) {
         e.vy = -3;
       }
     }
@@ -528,13 +676,15 @@ export class Game {
           this.updateEnemy(e);
           break;
         case 'football':
-        case 'goldball':
+        case 'jersey':
           this.updateWalkingItem(e, 0.25, () => {});
           break;
         case 'trophy':
           this.updateWalkingItem(e, 0.15, () => { e.vy = -4; });
           break;
         case 'blaze':
+        case 'noodles':
+        case 'feather':
           e.anim++;
           break;
         case 'fireball':
@@ -569,7 +719,7 @@ export class Game {
   updateEmerging(e) {
     e.y -= 1;
     if (--e.emerge > 0) return;
-    if (e.type === 'football' || e.type === 'goldball') e.vx = 1;
+    if (e.type === 'football' || e.type === 'jersey') e.vx = 1;
     if (e.type === 'trophy') {
       e.vx = 1.2;
       e.vy = -4;
@@ -662,16 +812,20 @@ export class Game {
         this.addScore(1000, e.x, e.y);
         break;
       case 'blaze':
+      case 'noodles':
+      case 'feather': {
+        const power = ITEM_POWER[e.type];
         if (p.size === 'small') this.powerUp('big');
-        else if (p.size === 'big') this.powerUp('fire');
+        else if (p.size !== power) this.powerUp(power);
         this.addScore(1000, e.x, e.y);
         break;
+      }
       case 'trophy':
         p.star = STAR_FRAMES;
         this.addScore(1000, e.x, e.y);
         this.sfx('music:star');
         break;
-      case 'goldball':
+      case 'jersey':
         this.gainLife(e.x, e.y);
         break;
       default:
@@ -689,7 +843,8 @@ export class Game {
   touchEnemy(e) {
     if (e.state === 'flip' || e.state === 'flat') return;
     const p = this.player;
-    if (p.star > 0) {
+    // The trophy, a roll and a ground pound all bowl defenders over on contact.
+    if (p.star > 0 || p.rolling > 0 || p.pound < 0) {
       this.flipKill(e, 200);
       return;
     }
@@ -856,6 +1011,11 @@ export class Game {
         fx.x += fx.vx;
         fx.y += fx.vy;
         fx.vy += 0.3;
+      } else if (fx.kind === 'confetti') {
+        fx.x += fx.vx;
+        fx.y += fx.vy;
+        fx.vx *= 0.98;
+        fx.vy = Math.min(fx.vy + 0.06, 1.2);
       }
     }
     this.effects = this.effects.filter((fx) => fx.t > 0 && fx.y < SCREEN_H + 16);
@@ -868,7 +1028,111 @@ export class Game {
     if (target > this.camX) this.camX = Math.min(target, max);
   }
 
-  // ───────────────────────────── end of level: corner flag ─────────────────────────────
+  // ───────────────────────────── pipes & the bonus room ─────────────────────────────
+
+  /** Standing on the warp pipe holding ↓ sends Neymario down into the bonus room. */
+  tryEnterPipe() {
+    const p = this.player;
+    const warp = this.level.warp;
+    if (!warp || this.areaName !== 'main') return false;
+    const left = warp.x * TILE;
+    if (p.y + p.h !== warp.top * TILE || p.x < left + 2 || p.x + p.w > left + 2 * TILE - 2) return false;
+    this.beginPipe('down');
+    return true;
+  }
+
+  atSideExit() {
+    const exit = this.level.sideExit;
+    if (!exit) return false;
+    const p = this.player;
+    const foot = Math.floor((p.y + p.h - 1) / TILE);
+    return Math.ceil((p.x + p.w) / TILE) === exit.x && (foot === exit.row || foot === exit.row + 1);
+  }
+
+  beginPipe(dir) {
+    const p = this.player;
+    if (p.rolling || p.crouch) {
+      p.rolling = 0;
+      p.crouch = false;
+      this.setHeight(p.size === 'small' ? SMALL_H : BIG_H);
+    }
+    p.vx = 0;
+    p.vy = 0;
+    p.pound = 0;
+    p.inPipe = true;
+    this.entities = this.entities.filter((e) => e.type !== 'fireball');
+    this.seq = { phase: dir, t: dir === 'down' ? p.h + 4 : 24 };
+    this.setState('pipe');
+    this.sfx('pipe');
+  }
+
+  updatePipe() {
+    const p = this.player;
+    const s = this.seq;
+    this.updateEffects();
+    switch (s.phase) {
+      case 'down':
+        p.y += 1;
+        if (--s.t <= 0) this.enterBonus();
+        break;
+      case 'right':
+        p.x += 1;
+        if (--s.t <= 0) this.returnToMain();
+        break;
+      case 'rise':
+        p.y -= 1;
+        if (p.y + p.h <= s.top) {
+          p.y = s.top - p.h;
+          p.inPipe = false;
+          p.onGround = true;
+          this.setState('play');
+        }
+        break;
+      default:
+        break;
+    }
+  }
+
+  switchArea(name) {
+    this.areaName = name;
+    this.level = this.areas[name];
+    this.entities = [];
+    this.effects = [];
+    this.bumps = new Map();
+  }
+
+  enterBonus() {
+    const p = this.player;
+    this.mainPending = this.pending;
+    this.switchArea('bonus');
+    this.pending = this.level.spawns.map((sp) => ({ ...sp }));
+    this.camX = 0;
+    p.x = this.level.spawn.x;
+    p.y = 3 * TILE;
+    p.inPipe = false;
+    p.onGround = false;
+    this.setState('play');
+    this.sfx(`music:${this.level.theme}`);
+  }
+
+  /** Back to the main area, rising out of the exit pipe further along the level. */
+  returnToMain() {
+    const p = this.player;
+    this.switchArea('main');
+    const { exit } = this.level;
+    p.x = exit.x * TILE + TILE - p.w / 2;
+    p.y = exit.top * TILE;
+    p.facing = 1;
+    const max = this.level.width * TILE - SCREEN_W;
+    this.camX = Math.max(0, Math.min(p.x + p.w / 2 - SCREEN_W * 0.45, max));
+    // Enemies the camera already passed stay gone, like the original.
+    this.pending = this.mainPending.filter((sp) => sp.x >= this.camX);
+    this.seq = { phase: 'rise', top: exit.top * TILE };
+    this.sfx('pipe');
+    this.sfx(`music:${this.level.theme}`);
+  }
+
+  // ───────────────────────────── end of level: corner flag & goal ─────────────────────────────
 
   beginFlag() {
     const p = this.player;
@@ -877,12 +1141,14 @@ export class Game {
     p.vx = 0;
     p.vy = 0;
     p.facing = 1;
+    p.pound = 0;
+    p.rolling = 0;
     p.crouch = false;
     if (p.size !== 'small' && p.h !== BIG_H) this.setHeight(BIG_H);
     const points = p.y < 4 * TILE ? 5000 : p.y < 6 * TILE ? 2000 : p.y < 8 * TILE ? 800 : p.y < 10 * TILE ? 400 : 100;
     this.addScore(points, poleX + 6, p.y);
     this.entities = this.entities.filter((e) => e.type !== 'fireball');
-    this.seq = { phase: 'slide', flagY: 3 * TILE + 4, t: 0, raised: 0 };
+    this.seq = { phase: 'slide', flagY: 3 * TILE + 4, t: 0 };
     this.setState('flag');
     this.sfx('music:stop');
     this.sfx('flag');
@@ -907,38 +1173,112 @@ export class Game {
         break;
       }
       case 'hop':
-        if (--s.t <= 0) {
-          s.phase = 'walk';
-          p.facing = 1;
-          this.sfx('clear');
-        }
+        if (--s.t <= 0) this.beginCelebration(s);
         break;
+      default:
+        this.updateCelebration(s, () => this.nextLevel());
+        break;
+    }
+  }
+
+  /** Neymario dribbles a ball up to the goal, shoots, and the stadium erupts. */
+  beginCelebration(s) {
+    const p = this.player;
+    p.facing = 1;
+    if (this.level.castleX === null) {
+      s.phase = 'tally';
+      return;
+    }
+    s.phase = 'walk';
+    s.ball = { x: p.x + p.w + 2, y: GROUND_ROW * TILE - 8, spin: 0 };
+    s.bulge = 0;
+    this.sfx('whistle');
+  }
+
+  updateCelebration(s, onFinish) {
+    const p = this.player;
+    const groundY = GROUND_ROW * TILE;
+    const goalX = this.level.castleX * TILE;
+    const stepPlayer = (vx) => {
+      p.vx = vx;
+      p.vy = Math.min(p.vy + PHYS.gravity, PHYS.maxFall);
+      p.onGround = moveBody(p, this.level).landed;
+      p.anim += p.onGround ? Math.abs(p.vx) : 0;
+    };
+    switch (s.phase) {
       case 'walk': {
-        p.vx = 1.2;
-        p.vy = Math.min(p.vy + PHYS.gravity, PHYS.maxFall);
-        const res = moveBody(p, this.level);
-        p.onGround = res.landed;
-        p.anim += p.onGround ? p.vx : 0;
+        const kickX = goalX - 40;
+        stepPlayer(p.x + p.w < kickX ? 1.2 : 0);
         this.updateCamera();
-        if (p.x >= (this.level.castleX + 2) * TILE) {
-          p.hidden = true;
-          p.vx = 0;
-          s.phase = 'tally';
+        s.ball.x = p.x + p.w + 2 + Math.abs(Math.sin(this.frame / 6)) * 4;
+        s.ball.spin += p.vx;
+        if (p.vx === 0 && p.onGround) {
+          s.phase = 'kick';
+          s.t = 14;
         }
         break;
       }
+      case 'kick':
+        stepPlayer(0);
+        if (--s.t <= 0) {
+          s.phase = 'fly';
+          s.flight = { x0: s.ball.x, y0: s.ball.y, x1: goalX + 40, y1: groundY - 30, t: 0, n: 32 };
+          this.sfx('kick');
+        }
+        break;
+      case 'fly': {
+        stepPlayer(0);
+        const f = s.flight;
+        const k = ++f.t / f.n;
+        s.ball.x = f.x0 + (f.x1 - f.x0) * k;
+        s.ball.y = f.y0 + (f.y1 - f.y0) * k - 48 * k * (1 - k);
+        s.ball.spin += 3;
+        if (f.t >= f.n) {
+          s.phase = 'goal';
+          s.t = 150;
+          s.bulge = 10;
+          this.addScore(5000, goalX + 16, groundY - 60);
+          this.sfx('goal');
+          this.confetti(60);
+        }
+        break;
+      }
+      case 'goal':
+        // Ball drops into the bulging net while Neymario jumps for joy.
+        s.bulge = Math.max(0, s.bulge - 0.25);
+        s.ball.y = Math.min(s.ball.y + 1.5, groundY - 8);
+        if (p.onGround && s.t % 40 === 0) p.vy = -3.6;
+        stepPlayer(0);
+        if (s.t % 6 === 0) this.confetti(6);
+        if (--s.t <= 0) s.phase = 'tally';
+        break;
       case 'tally':
+        stepPlayer(0);
         if (this.tallyTime()) {
           s.phase = 'done';
-          s.t = 90;
+          s.t = 60;
         }
         break;
       case 'done':
-        s.raised = Math.min(s.raised + 1, 16);
-        if (--s.t <= 0) this.nextLevel();
+        if (--s.t <= 0) onFinish();
         break;
       default:
         break;
+    }
+  }
+
+  confetti(n) {
+    const colors = ['#ffdf00', '#009c3b', '#1f3fae', '#ffffff'];
+    for (let i = 0; i < n; i++) {
+      this.effects.push({
+        kind: 'confetti',
+        x: this.camX + this.random() * SCREEN_W,
+        y: 30 + this.random() * 40,
+        vx: (this.random() - 0.5) * 2,
+        vy: this.random() * 0.5,
+        color: colors[Math.floor(this.random() * colors.length)],
+        t: 120,
+      });
     }
   }
 
@@ -987,10 +1327,12 @@ export class Game {
     const bridge = this.level.bridge;
     const p = this.player;
     this.updateEffects();
-    // Neymario drops straight down if he crossed the cup mid-jump.
-    p.vx = 0;
-    p.vy = Math.min(p.vy + PHYS.gravity, PHYS.maxFall);
-    p.onGround = moveBody(p, this.level).landed;
+    if (s.phase === 'collapse' || s.phase === 'fall') {
+      // Neymario drops straight down if he crossed the cup mid-jump.
+      p.vx = 0;
+      p.vy = Math.min(p.vy + PHYS.gravity, PHYS.maxFall);
+      p.onGround = moveBody(p, this.level).landed;
+    }
     for (const boss of this.entities.filter((e) => e.type === 'boss')) {
       boss.vx = 0;
       boss.vy = Math.min(boss.vy + 0.2, 5);
@@ -1016,13 +1358,11 @@ export class Game {
       case 'fall': {
         // Wait for the boss to sink, but never hang if something kept him on solid ground.
         const bossGone = !this.entities.some((e) => e.type === 'boss');
-        if (--s.t <= 0 && (bossGone || s.t < -240)) s.phase = 'tally';
+        if (--s.t <= 0 && (bossGone || s.t < -240)) this.beginCelebration(s);
         break;
       }
-      case 'tally':
-        if (this.tallyTime()) this.win();
-        break;
       default:
+        this.updateCelebration(s, () => this.win());
         break;
     }
   }

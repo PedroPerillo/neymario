@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Game } from '../src/game.js';
-import { TILE, GROUND_ROW, SCREEN_H, BIG_H, SMALL_H } from '../src/constants.js';
+import { TILE, GROUND_ROW, SCREEN_H, BIG_H, SMALL_H, PHYS } from '../src/constants.js';
 import { run, testLevel, playing, flatGround } from './helpers.js';
 
 const GROUND_Y = GROUND_ROW * TILE;
@@ -123,15 +123,15 @@ test('question blocks pay out a coin; 100 coins is an extra life', () => {
   assert.equal(g.lives, 4);
 });
 
-test('a hidden block hides a golden ball worth a life', () => {
+test('a hidden block hides a Brazil #10 shirt worth a life', () => {
   const g = playing([flatGround((L) => L.place(2, 9, '1'))]);
   settle(g);
   jump(g, 10);
   assert.equal(g.level.tiles[9][2], 'U', 'hidden block revealed');
-  const ball = find(g, 'goldball');
-  assert.ok(ball);
-  g.player.x = ball.x;
-  g.player.y = ball.y + ball.h - g.player.h;
+  const shirt = find(g, 'jersey');
+  assert.ok(shirt);
+  g.player.x = shirt.x;
+  g.player.y = shirt.y + shirt.h - g.player.h;
   g.update({});
   assert.equal(g.lives, 4);
 });
@@ -421,4 +421,190 @@ test('the high score follows the score live, not just at game over', () => {
   g.addScore(500);
   g.update({});
   assert.equal(g.highScore, 500);
+});
+
+// ── transformations, extra moves, pipes and the goal ──
+
+const powerLevel = (power, extra = () => {}) => testLevel((L) => {
+  L.ground(0, 39);
+  L.place(2, 9, 'M');
+  extra(L);
+}, { power });
+
+for (const [power, item] of [['fire', 'blaze'], ['roll', 'noodles'], ['pombo', 'feather']]) {
+  test(`a big Neymario gets the ${item} from power blocks in a ${power} World Cup`, () => {
+    const g = playing([powerLevel(power)]);
+    g.setSize('big');
+    settle(g);
+    jump(g, 10);
+    const it = find(g, item);
+    assert.ok(it, `${item} released`);
+    g.player.x = it.x;
+    g.player.y = it.y + it.h - g.player.h;
+    g.update({});
+    assert.equal(g.player.size, power);
+  });
+}
+
+test('Miojo roll: run, press down, and Neymario rolls through defenders and bricks', () => {
+  const g = playing([testLevel((L) => {
+    L.ground(0, 39);
+    L.place(11, 11, 'B').place(11, 12, 'B');
+    L.enemy('defender', 9);
+  })]);
+  g.setSize('roll');
+  settle(g);
+  run(g, { right: true, run: true }, 20);
+  g.update({ right: true, run: true, down: true });
+  assert.ok(g.player.rolling > 0, 'rolling');
+  assert.equal(g.player.h, SMALL_H);
+  run(g, { right: true }, 40);
+  assert.equal(g.state, 'play', 'unhurt');
+  assert.equal(find(g, 'defender')?.state ?? 'flip', 'flip');
+  assert.equal(g.level.tiles[12][11], ' ', 'brick smashed');
+  run(g, {}, 30);
+  assert.equal(g.player.rolling, 0);
+  assert.equal(g.player.h, BIG_H, 'stands back up');
+});
+
+test('Pombo feather: hold jump to glide down slowly, and flap once in mid-air', () => {
+  const g = playing([flatGround()]);
+  g.setSize('pombo');
+  settle(g);
+  g.update({});
+  run(g, { jump: true }, 60);
+  assert.ok(!g.player.onGround);
+  assert.ok(g.player.vy <= PHYS.glideFall, `gliding at ${g.player.vy}`);
+  assert.ok(g.player.gliding);
+  g.update({});
+  g.update({ jump: true });
+  assert.equal(g.player.vy, -PHYS.flapVel + PHYS.gravityHold, 'flapped');
+  g.update({});
+  const vy = g.player.vy;
+  g.update({ jump: true });
+  assert.ok(g.player.vy > vy - 1, 'only one flap per jump');
+});
+
+test('ground pound: down in mid-air hangs, slams, and flattens a defender below', () => {
+  const g = playing([withEnemy('defender', 6)]);
+  settle(g);
+  const d = find(g, 'defender');
+  d.vx = 0;
+  g.player.x = d.x;
+  g.player.y = d.y - 70;
+  g.player.onGround = false;
+  g.update({ down: true });
+  assert.ok(g.player.pound > 0, 'winding up');
+  const y = g.player.y;
+  run(g, {}, PHYS.poundWindup - 1);
+  assert.equal(g.player.y, y, 'hangs in the air during the windup');
+  run(g, {}, 20);
+  assert.equal(d.state, 'flip');
+  assert.equal(g.state, 'play');
+});
+
+test('a big ground pound smashes the bricks under Neymario and keeps going', () => {
+  const g = playing([flatGround((L) => L.place(1, 12, 'BBBB'))]);
+  g.setSize('big');
+  g.player.y = 12 * TILE - g.player.h;
+  settle(g);
+  assert.equal(g.player.y + g.player.h, 12 * TILE, 'standing on the bricks');
+  g.update({});
+  run(g, { jump: true }, 8);
+  g.update({ down: true });
+  run(g, {}, 60);
+  assert.equal(g.level.tiles[12][2], ' ');
+  assert.equal(g.level.tiles[12][3], ' ');
+  assert.equal(g.player.y + g.player.h, GROUND_Y);
+  assert.equal(g.player.pound, 0);
+});
+
+test('wall jump: slide down a wall, then jump to kick off it', () => {
+  const g = playing([flatGround((L) => L.column(8, 8))]);
+  settle(g);
+  g.player.x = 8 * TILE - g.player.w - 1;
+  g.update({ right: true });
+  run(g, { right: true, jump: true }, 25);
+  run(g, { right: true }, 20);
+  assert.ok(!g.player.onGround);
+  assert.ok(g.player.wallGrace > 0, 'clinging to the wall');
+  assert.ok(g.player.vy <= PHYS.wallSlide, 'sliding slowly');
+  g.update({ right: true, jump: true });
+  assert.ok(g.player.vx < 0, 'kicked away from the wall');
+  assert.ok(g.player.vy < 0, 'and upward');
+});
+
+const pipeLevel = testLevel((L) => {
+  L.ground(0, 39);
+  L.pipe(10, 2);
+  L.warpPipe(4, 2);
+  L.exitPipe(24, 2);
+}, {
+  bonus: {
+    width: 16,
+    theme: 'tunnel',
+    build(B) {
+      B.ground(0, 15);
+      B.fill(0, 3, 1, 10, 'B');
+      B.place(5, 12, 'CCC');
+      B.sidePipe(13, 11);
+    },
+  },
+});
+
+test('down on the warp pipe leads to the bonus room; its side pipe pops Neymario out of the exit pipe', () => {
+  const g = playing([pipeLevel]);
+  g.player.x = 4 * TILE + 3;
+  g.player.y = 11 * TILE - g.player.h;
+  g.update({});
+  g.update({ down: true });
+  assert.equal(g.state, 'pipe');
+  let guard = 0;
+  while (g.state === 'pipe' && guard++ < 200) g.update({ down: true });
+  assert.equal(g.areaName, 'bonus');
+  assert.equal(g.level.theme, 'tunnel');
+  guard = 0;
+  while (g.areaName === 'bonus' && guard++ < 400) g.update({ right: true });
+  assert.ok(g.coins >= 3, 'collected the bonus coins');
+  guard = 0;
+  while (g.state !== 'play' && guard++ < 200) g.update({});
+  assert.equal(g.areaName, 'main');
+  assert.equal(g.player.y + g.player.h, 11 * TILE, 'standing on top of the exit pipe');
+  assert.ok(Math.abs(g.player.x + g.player.w / 2 - (24 * TILE + TILE)) < 2, 'centred on the exit pipe');
+});
+
+test('an ordinary pipe cannot be entered', () => {
+  const g = playing([pipeLevel]);
+  g.player.x = 10 * TILE + 3;
+  g.player.y = 11 * TILE - g.player.h;
+  g.update({});
+  run(g, { down: true }, 30);
+  assert.equal(g.state, 'play');
+  assert.equal(g.areaName, 'main');
+});
+
+test('after the corner flag, Neymario shoots into the goal: GOOOOL, confetti and 5000 points', () => {
+  const g = playing([goalLevel, flatGround()]);
+  g.player.x = 8 * TILE;
+  settle(g);
+  g.update({ right: true });
+  run(g, { right: true, jump: true }, 30);
+  run(g, { right: true }, 60);
+  assert.equal(g.state, 'flag');
+  const phases = new Set();
+  let scoredAt = null;
+  let guard = 0;
+  while (g.state === 'flag' && guard++ < 3000) {
+    g.update({});
+    if (g.state !== 'flag') break;
+    phases.add(g.seq.phase);
+    if (g.seq.phase === 'goal' && scoredAt === null) {
+      scoredAt = { ...g.seq.ball };
+      assert.ok(g.effects.some((fx) => fx.kind === 'confetti'), 'confetti');
+    }
+  }
+  for (const ph of ['slide', 'walk', 'kick', 'fly', 'goal', 'tally']) assert.ok(phases.has(ph), `went through ${ph}`);
+  const goalX = 15 * TILE;
+  assert.ok(scoredAt.x > goalX + 10 && scoredAt.x < goalX + 76, 'ball ended up inside the net');
+  assert.equal(g.state, 'intro');
 });

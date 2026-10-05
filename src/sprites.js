@@ -180,7 +180,9 @@ export const NEY_PAL = {
   Y: '#ffdf00', G: '#009c3b', B: '#1f3fae', W: '#ffffff', P: '#ff4fa3',
 };
 // The Brazil kit never changes. Power states show on the mohawk and boots:
-// Blaze sets them flickering like flames, the trophy flashes them rainbow.
+// Blaze sets them flickering like flames, Miojo gives curly noodle hair and
+// white boots, the Pombo feather platinum hair and sky-blue boots, and the
+// trophy flashes them rainbow.
 const BLAZE_FLAMES = [
   { H: '#ff6a00', P: '#ff2a00' },
   { H: '#ffb000', P: '#ff6a00' },
@@ -197,8 +199,13 @@ export function playerPalette({ size, star }, frame) {
     const i = (frame >> 3) % BLAZE_FLAMES.length;
     return [`fire${i}`, { ...NEY_PAL, ...BLAZE_FLAMES[i] }];
   }
+  if (size === 'roll') return ['roll', { ...NEY_PAL, H: '#ffe9a0', h: '#d8a840', P: '#ffffff' }];
+  if (size === 'pombo') return ['pombo', { ...NEY_PAL, H: '#eef2f8', P: '#5ad1ff' }];
   return ['base', NEY_PAL];
 }
+
+/** Miojo hair: checker the mohawk with a darker noodle shade ('h'). */
+export const noodleHair = (rows) => rows.map((row, y) => [...row].map((ch, x) => (ch === 'H' && (x + y) % 2 ? 'h' : ch)).join(''));
 
 // ── Opponents ─────────────────────────────────────────────────────────────
 // A/a shirt (two colours so Croatia gets its checkerboard), D shorts.
@@ -357,7 +364,6 @@ export const FOOTBALL = [
   '.....OOOOOO',
 ];
 export const FOOTBALL_PAL = { O: '#3a3a3a', K: '#1a1a1a', W: '#ffffff', g: '#c8c8c8' };
-export const GOLDBALL_PAL = { O: '#6a3a00', K: '#9a5a00', W: '#ffd700', g: '#e0a000' };
 
 // A stylised flame emblem standing in for the Blaze logo.
 export const BLAZE = [
@@ -402,23 +408,96 @@ export const TROPHY = [
 ];
 export const TROPHY_PAL = { K: '#5a3a00', Q: '#ffcc1a', W: '#fffbe0', G: '#1f9c4a' };
 
+// Coins are golden soccer balls.
 export const COIN = [
   '',
-  '......KKKK',
-  '.....KQQQQK',
-  '....KQQWQQQK',
+  '',
+  '.....KKKKKK',
   '....KQWQQQQK',
-  '....KQWQQQQK',
-  '....KQWQQQQK',
-  '....KQWQQQQK',
-  '....KQWQQQQK',
-  '....KQWQQQQK',
-  '....KQWQQQQK',
+  '...KQWQddQQQK',
+  '..KQQQdddQQQQK',
+  '..KQdQQdQQQdQK',
+  '..KddQQQQQdddK',
+  '..KQdQQQQQQdQK',
+  '..KQQQQddQQQQK',
+  '..KQQQdddQQQQK',
+  '...KQQQdQQQQK',
   '....KQQQQQQK',
-  '.....KQQQQK',
-  '......KKKK',
+  '.....KKKKKK',
 ];
-export const COIN_PAL = { K: '#6b3d00', Q: '#ffc400', W: '#fff4b0' };
+export const COIN_PAL = { K: '#6b3d00', Q: '#ffc400', d: '#b87800', W: '#fff4b0' };
+
+// Small match ball for the end-of-level goal.
+export const MATCH_BALL = [
+  '..KKKK',
+  '.KWWKWK',
+  'KWKKWWWK',
+  'KWKKWWKK',
+  'KWWWWKKK',
+  'KKWWWKWK',
+  '.KWKWWK',
+  '..KKKK',
+];
+export const MATCH_BALL_PAL = { K: '#1a1a1a', W: '#ffffff' };
+
+// 1-UP: a Brazil #10 shirt.
+export const JERSEY = [
+  '',
+  '...KKKK..KKKK',
+  '..KGGGGKKGGGGK',
+  '.KGYYYYGGYYYYGK',
+  'KGYYYYYYYYYYYYGK',
+  'KGGYYYYYYYYYYGGK',
+  '.KKKYYYYYYYYKKK',
+  '...KYBYYBBBYK',
+  '...KYBYYBYBYK',
+  '...KYBYYBYBYK',
+  '...KYBYYBYBYK',
+  '...KYBYYBBBYK',
+  '...KYYYYYYYYK',
+  '...KGGGGGGGGK',
+  '...KKKKKKKKKK',
+];
+export const JERSEY_PAL = { K: '#1a1a1a', Y: '#ffdf00', G: '#009c3b', B: '#1f3fae' };
+
+// 2018 power: a cup of instant noodles ("miojo"), for Neymar's noodle hair.
+export const NOODLES = [
+  '....w..w..w',
+  '...w..w..w',
+  '..KKKKKKKKKKKK',
+  '..KYyYyYyYyYYK',
+  '..KKKKKKKKKKKK',
+  '...KRRRRRRRRK',
+  '...KCCCCCCCCK',
+  '...KCRRCCRRCK',
+  '...KCRCRRCRCK',
+  '....KCCCCCCK',
+  '....KRRRRRRK',
+  '....KCCCCCCK',
+  '.....KCCCCK',
+  '.....KKKKKK',
+];
+export const NOODLES_PAL = { K: '#3a1a00', Y: '#ffe680', y: '#d8a840', R: '#e8202a', C: '#fff6e0', w: '#d0d8e0' };
+
+// 2022 power: a pigeon feather (the "pombo" celebration).
+export const FEATHER = [
+  '...........KK',
+  '.........KKWWK',
+  '........KWWWgK',
+  '.......KWWWWgK',
+  '......KWWWWgK',
+  '.....KWWWWgK',
+  '....KWWWbgK',
+  '...KWWWbgK',
+  '...KWWbgK',
+  '..KWWbgK',
+  '..KWbgK',
+  '..KbgK',
+  '.KgK',
+  '.KK',
+  'K',
+];
+export const FEATHER_PAL = { K: '#2a2f3a', W: '#f4f6fa', g: '#9aa3b2', b: '#6fa8dc' };
 
 // Neymario's Blaze shot: a flaming football.
 export const FIREBALL = [

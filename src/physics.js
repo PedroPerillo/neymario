@@ -1,6 +1,6 @@
 import { TILE, ROWS } from './constants.js';
 
-const SOLID = new Set(['#', 'B', 'S', '?', 'U', '[', ']', '{', '}', '=']);
+const SOLID = new Set(['#', 'B', 'S', '?', 'U', '[', ']', '{', '}', '=', '(', ')', '-', '_']);
 
 export const isSolidChar = (ch) => SOLID.has(ch);
 
