@@ -1,0 +1,85 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #0b1230;
+  color: #e8e8f0;
+  font-family: 'Press Start 2P', ui-monospace, monospace;
+}
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+}
+
+#screen {
+  width: min(96vw, calc((100vh - 120px) * 256 / 240), 768px);
+  aspect-ratio: 256 / 240;
+  image-rendering: pixelated;
+  border: 4px solid #ffdf00;
+  box-shadow: 0 0 0 4px #009c3b, 0 12px 40px rgba(0, 0, 0, 0.6);
+  background: #000;
+}
+
+.help,
+.disclaimer {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.6;
+  text-align: center;
+  max-width: 768px;
+}
+
+.disclaimer {
+  color: #8088aa;
+  font-size: 8px;
+}
+
+.touch {
+  display: none;
+  width: min(96vw, 768px);
+  justify-content: space-between;
+  align-items: center;
+  user-select: none;
+  touch-action: none;
+}
+
+.pad {
+  display: flex;
+  gap: 8px;
+}
+
+.touch button {
+  font: inherit;
+  font-size: 14px;
+  min-width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  border: 2px solid #ffdf00;
+  background: #1f3fae;
+  color: #fff;
+  touch-action: none;
+}
+
+.touch button.round {
+  border-radius: 50%;
+  width: 60px;
+  height: 60px;
+  background: #009c3b;
+}
+
+@media (pointer: coarse) {
+  .touch {
+    display: flex;
+  }
+  .help {
+    display: none;
+  }
+}

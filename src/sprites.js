@@ -1,0 +1,459 @@
+// Pixel art as palette-indexed strings. '.' is transparent; rows shorter than
+// the sprite width are padded, so art can be written without trailing dots.
+
+// ── Neymario ──────────────────────────────────────────────────────────────
+// H blond mohawk, D shaved sides, S skin, Y Brazil yellow, G green trim,
+// B blue shorts, W socks, P pink boots, K eyes/outline.
+
+const SMALL_HEAD = [
+  '......HHHH',
+  '.....HHHHHH',
+  '....DHHHHHHD',
+  '....DSSSSKSS',
+  '....DSSSSSSSS',
+  '.....SSSSSS',
+];
+const SMALL_BODY = [
+  '.....GYYYYG',
+  '...YYYYYYYYYY',
+  '..SYYYYGYYYYYS',
+  '..S.YYYYYYYY.S',
+];
+const SMALL_LEGS = {
+  stand: [
+    '....YYYYYYYY',
+    '....BBBBBBBB',
+    '....BBB..BBB',
+    '....SSS..SSS',
+    '....WWW..WWW',
+    '...PPPP..PPPPP',
+  ],
+  run1: [
+    '....YYYYYYYY',
+    '...BBBBBBBBBB',
+    '..BBB......BBB',
+    '.SSS........SSS',
+    '.WWW........WWW',
+    'PPP..........PPP',
+  ],
+  run2: [
+    '....YYYYYYYY',
+    '.....BBBBBB',
+    '......BBBB',
+    '......SSSS',
+    '......WWWW',
+    '.....PPPPPP',
+  ],
+  jump: [
+    '....YYYYYYYY',
+    '....BBBBBBBBB',
+    '...BBB....BBBB',
+    '..SSS......SSS',
+    '.WWW.......WWW',
+    'PPP.........PPP',
+  ],
+};
+
+export const NEY_SMALL = {
+  stand: [...SMALL_HEAD, ...SMALL_BODY, ...SMALL_LEGS.stand],
+  run1: [...SMALL_HEAD, ...SMALL_BODY, ...SMALL_LEGS.run1],
+  run2: [...SMALL_HEAD, ...SMALL_BODY, ...SMALL_LEGS.run2],
+  jump: [...SMALL_HEAD, ...SMALL_BODY, ...SMALL_LEGS.jump],
+  dead: [
+    '......HHHH',
+    '.....HHHHHH',
+    '....DHHHHHHD',
+    '.S..DSKSSKSD..S',
+    '.SS.SSSSSSSS.SS',
+    '..SS.SSKKSS.SS',
+    '...SYYGYYGYYS',
+    '....YYYYYYYY',
+    '....YYYYYYYY',
+    '....YYYYYYYY',
+    '....BBBBBBBB',
+    '....BBB..BBB',
+    '....SSS..SSS',
+    '....WWW..WWW',
+    '....WWW..WWW',
+    '...PPPP..PPPP',
+  ],
+};
+
+const BIG_HEAD = [
+  '.....HHHHH',
+  '....HHHHHHH',
+  '....HHHHHHHH',
+  '...DDHHHHHHHD',
+  '...DDSSSSSSSD',
+  '...DSSSSSKSSS',
+  '...DSSSSSKSSSS',
+  '...DSSSSSSSSSS',
+  '....SSSSSSKKS',
+  '.....SSSSSSS',
+  '......SSSS',
+];
+const BIG_BODY = [
+  '....GGYYYYGG',
+  '...YYYYYYYYYY',
+  '..YYYYYYYYYYYY',
+  '.SYYYYYYYGGYYYS',
+  '.SYYYYYYYGGYYYS',
+  '.SYYYYYYYYYYYYS',
+  '.SS.YYYYYYYYY.SS',
+  '.S..YYYYYYYYY..S',
+  '....YYYYYYYYY',
+  '....YYYYYYYYY',
+];
+const BIG_LEGS = {
+  stand: [
+    '....BBBBBBBBB',
+    '....BBBBBBBBB',
+    '....BBBB.BBBB',
+    '....BBBB.BBBB',
+    '....SSS...SSS',
+    '....WWW...WWW',
+    '....WWW...WWW',
+    '....WWW...WWW',
+    '....WWW...WWW',
+    '...PPPP...PPPP',
+    '...PPPPP..PPPPP',
+  ],
+  run1: [
+    '....BBBBBBBBB',
+    '...BBBBBBBBBB',
+    '...BBBB..BBBBB',
+    '..BBBB....BBBB',
+    '..SSS......SSS',
+    '.WWW........WWW',
+    '.WWW........WWW',
+    '.WWW.........WWW',
+    'WWW..........WWW',
+    'PPP..........PPP',
+    'PPP..........PPP',
+  ],
+  run2: [
+    '....BBBBBBBBB',
+    '....BBBBBBBBB',
+    '.....BBBBBBB',
+    '......BBBBB',
+    '......SSSS',
+    '......WWWW',
+    '......WWWW',
+    '......WWWW',
+    '......WWWW',
+    '.....PPPPPP',
+    '.....PPPPPPP',
+  ],
+  jump: [
+    '....BBBBBBBBB',
+    '...BBBBBBBBBB',
+    '..BBBB...BBBBB',
+    '.BBB.......BBB',
+    '.SSS.......SSS',
+    'WWW.........WWW',
+    'WWW.........WWW',
+    'WW...........WW',
+    'PPP..........PPP',
+    'PP...........PP',
+    '',
+  ],
+};
+
+export const NEY_BIG = {
+  stand: [...BIG_HEAD, ...BIG_BODY, ...BIG_LEGS.stand],
+  run1: [...BIG_HEAD, ...BIG_BODY, ...BIG_LEGS.run1],
+  run2: [...BIG_HEAD, ...BIG_BODY, ...BIG_LEGS.run2],
+  jump: [...BIG_HEAD, ...BIG_BODY, ...BIG_LEGS.jump],
+  crouch: [
+    ...BIG_HEAD,
+    '..YYYYYYYYYYYY',
+    '.SYYYYYYYYYYYYS',
+    '.SBBBBBBBBBBBBS',
+    '..WWWW....WWWW',
+    '.PPPPP....PPPPP',
+  ],
+};
+
+export const NEY_PAL = {
+  H: '#f3d36b', D: '#3b2716', S: '#c98b57', K: '#1a1a1a',
+  Y: '#ffdf00', G: '#009c3b', B: '#1f3fae', W: '#ffffff', P: '#ff4fa3',
+};
+// Blaze power: the kit turns flame red with gold trim.
+export const NEY_FIRE_PAL = { ...NEY_PAL, Y: '#ff4b1f', G: '#ffd400', B: '#ffffff', W: '#ff4b1f' };
+// Trophy invincibility cycles the shirt through these.
+export const STAR_SHIRTS = ['#ffdf00', '#ff4b1f', '#ffffff', '#38d7ff'];
+
+// ── Opponents ─────────────────────────────────────────────────────────────
+// A/a shirt (two colours so Croatia gets its checkerboard), D shorts.
+
+export const DEFENDER = [
+  '',
+  '.....HHHHHH',
+  '....HHHHHHHH',
+  '....SSSSSSSS',
+  '...SKKSSSSKKS',
+  '...SSKWSSWKSS',
+  '...SSSSSSSSSS',
+  '....SSKKKKSS',
+  '.....SSSSSS',
+  '...AaAaAaAaAa',
+  '..SaAaAaAaAaAS',
+  '..SAaAaAaAaAaS',
+  '....DDDDDDDD',
+  '....DDD..DDD',
+  '..KKKK...KKK',
+  '..KKKKK..KKKK',
+];
+
+export const kitPalette = (kit) => ({
+  A: kit.shirt, a: kit.shirt2, D: kit.shorts, S: kit.skin, H: kit.hair, K: '#111111', W: '#ffffff',
+});
+
+const REF_TOP = [
+  '',
+  '......KKKK',
+  '.....KKKKKK',
+  '.....SSSSSS',
+  '....SSKSSKS',
+  '....SSSSSSS..R',
+  '.....SKKSS...RR',
+  '......SSS....RR',
+  '....FFFFFFF.SS',
+  '...FFFFFFFFFSS',
+  '..FFFFFFFFFFF',
+  '..SFFFFWFFFF',
+  '..SFFFFKFFFF',
+  '..S.FFFFFFFF',
+  '....FFFFFFFF',
+  '....KKKKKKKK',
+  '....KKKKKKKK',
+];
+export const REFEREE = {
+  walk1: [
+    ...REF_TOP,
+    '....KKK..KKK',
+    '....SSS..SSS',
+    '....KKK..KKK',
+    '....KKK..KKK',
+    '....KKK..KKK',
+    '...KKKK..KKKK',
+    '...KKKK..KKKK',
+  ],
+  walk2: [
+    ...REF_TOP,
+    '....KKK...KKK',
+    '...SSS....SSS',
+    '...KKK.....KKK',
+    '...KKK.....KKK',
+    '..KKK......KKK',
+    '.KKKK......KKKK',
+    '.KKKK.......KKKK',
+  ],
+};
+export const REF_PAL = { K: '#151515', S: '#e0ac69', F: '#c6f000', R: '#e8102a', W: '#ffffff' };
+
+// The stomped referee curls up behind a VAR monitor, which can be kicked.
+export const VAR_SHELL = [
+  '',
+  '',
+  '.KKKKKKKKKKKKKK',
+  '.KBBBBBBBBBBBBK',
+  '.KBWBWBBWBBWWBK',
+  '.KBWBWBWBWBWBWK',
+  '.KBWBWBWWWBWWBK',
+  '.KBWBWBWBWBWBWK',
+  '.KBBWBBWBWBWBWK',
+  '.KBBBBBBBBBBBBK',
+  '.KKKKKKKKKKKKKK',
+  '......KggK',
+  '......KggK',
+  '....KKggggKK',
+  '...KggggggggK',
+  '...KKKKKKKKKK',
+];
+export const VAR_PAL = { K: '#151515', B: '#1e5bd8', W: '#ffffff', g: '#9a9a9a' };
+
+// ── Mbappé Ditador (32×32) ────────────────────────────────────────────────
+// Officer's cap, mirrored shades, epaulettes and far too many medals.
+const BOSS_HEAD = [
+  '',
+  '...........KKKKKKKKKK',
+  '.........KKNNNNNNNNNNKK',
+  '........KNNNNNNNNNNNNNNK',
+  '.......KNNNNNNNQQNNNNNNNK',
+  '.......KNNNNNNQQQQNNNNNNK',
+  '.......KNNNNNNNQQNNNNNNNK',
+  '......KKKKKKKKKKKKKKKKKKKK',
+  '.....KKKKKKKKKKKKKKKKKKKKKK',
+  '........KSSSSSSSSSSSSSSSK',
+  '........KSKKKKKKSSKKKKKKSK',
+  '........KSKKgKKKKKKKgKKKSK',
+  '........KSSKKKKKSSKKKKKSSK',
+  '........KSSSSSSSSSSSSSSSSK',
+  '.........KSSSSSsSSsSSSSSK',
+];
+const BOSS_BODY = [
+  '..........KSSSSSSSSSSSSK',
+  '...........KKSSSSSSSSKK',
+  '......KKKKKKKNNNSSNNNKKKKKKK',
+  '....KQQQQNNNNNNNKKNNNNNNNQQQQK',
+  '...KQQQQNNNNNNNNKKNNNNNNNNQQQQK',
+  '...KNNNNNNRRQNNNKKNNNNNNNNNNNNK',
+  '...KNNNNNNQRRNNNQKNNNNNNNNNNNNK',
+  '...KNNNNNNRQRNNNKKNNNNNNNNNNNNK',
+  '...KSSNNNNNNNNNNQKNNNNNNNNNNSSK',
+  '...KSSNNNNNNNNNNKKNNNNNNNNNNSSK',
+  '....KKNNNNNNNNNNQKNNNNNNNNNNKK',
+  '......KnnnnnnnnnnnnnnnnnnnnK',
+  '......KnnnnnnnnKKnnnnnnnnnnK',
+  '......KnnnnnnnK..KnnnnnnnnnK',
+  '.....KKKKKKKKK....KKKKKKKKKKK',
+  '.....KKKKKKKKK....KKKKKKKKKKK',
+];
+export const BOSS = {
+  closed: [...BOSS_HEAD, '.........KSSSKKKKKKKSSSSK', ...BOSS_BODY],
+  open: [...BOSS_HEAD, '.........KSSKRRRRRRKSSSSK', ...BOSS_BODY],
+};
+export const BOSS_PAL = {
+  K: '#0b0b0b', N: '#1b2a5e', n: '#0f1836', Q: '#f8c800', S: '#6b4423', s: '#4e2f17',
+  R: '#d01020', g: '#9ab0c0', W: '#ffffff',
+};
+
+// ── Items ─────────────────────────────────────────────────────────────────
+
+export const FOOTBALL = [
+  '.....OOOOOO',
+  '...OOWWWWWWOO',
+  '..OWWWWWWWWWWO',
+  '.OWWWWWKKWWWWWO',
+  '.OWWWWKKKKWWWWO',
+  'OKWWWKKKKKKWWWKO',
+  'OKKWWWKKKKWWWKKO',
+  'OKWWWWWWWWWWWWKO',
+  'OWWWWWWWWWWWWWgO',
+  'OWWKWWWWWWWWKWgO',
+  'OWKKKWWWWWWKKKgO',
+  '.OKKWWWWWWWWKKO',
+  '.OWWWWWKKWWWggO',
+  '..OWWWKKKKWggO',
+  '...OOgKKKKgOO',
+  '.....OOOOOO',
+];
+export const FOOTBALL_PAL = { O: '#3a3a3a', K: '#1a1a1a', W: '#ffffff', g: '#c8c8c8' };
+export const GOLDBALL_PAL = { O: '#6a3a00', K: '#9a5a00', W: '#ffd700', g: '#e0a000' };
+
+// A stylised flame emblem standing in for the Blaze logo.
+export const BLAZE = [
+  '......K',
+  '.....KRK',
+  '.....KRRK',
+  '....KRRRK...K',
+  '....KRRRRK.KRK',
+  '...KRROORRKKRK',
+  '...KRROORRKRRK',
+  '..KRRROOORRRRK',
+  '..KRROOYOORRRK',
+  '..KRROYYYOORRK',
+  '..KRROYWYYORRK',
+  '..KRROYYYYORRK',
+  '...KRROYYORRK',
+  '....KRROORRK',
+  '.....KKKKKK',
+];
+export const BLAZE_PALS = [
+  { K: '#2a0000', R: '#f12c4c', O: '#ff8a00', Y: '#ffe14a', W: '#ffffff' },
+  { K: '#2a0000', R: '#ff5a1f', O: '#ffb000', Y: '#fff3a0', W: '#ffffff' },
+];
+
+export const TROPHY = [
+  '....KKKKKKKK',
+  '.KKKQQQQQQQQKKK',
+  'KQQKQQQQQWQQKQQK',
+  'KQ.KQQQQQWQQK.QK',
+  'KQ.KQQQQQQQQK.QK',
+  '.KQKQQQQQQQQKQK',
+  '..KKQQQQQQQQKK',
+  '....KQQQQQQK',
+  '.....KQQQQK',
+  '......KQQK',
+  '......KQQK',
+  '.....KGGGGK',
+  '....KQQQQQQK',
+  '....KGGGGGGK',
+  '...KQQQQQQQQK',
+  '...KKKKKKKKKK',
+];
+export const TROPHY_PAL = { K: '#5a3a00', Q: '#ffcc1a', W: '#fffbe0', G: '#1f9c4a' };
+
+export const COIN = [
+  '',
+  '......KKKK',
+  '.....KQQQQK',
+  '....KQQWQQQK',
+  '....KQWQQQQK',
+  '....KQWQQQQK',
+  '....KQWQQQQK',
+  '....KQWQQQQK',
+  '....KQWQQQQK',
+  '....KQWQQQQK',
+  '....KQWQQQQK',
+  '....KQQQQQQK',
+  '.....KQQQQK',
+  '......KKKK',
+];
+export const COIN_PAL = { K: '#6b3d00', Q: '#ffc400', W: '#fff4b0' };
+
+// Neymario's Blaze shot: a flaming football.
+export const FIREBALL = [
+  '..OOOO',
+  '.OYYYYO',
+  'OYWKWWYO',
+  'OYKWWKYO',
+  'OYWWKWYO',
+  'OYWKWWYO',
+  '.OYYYYO',
+  '..OOOO',
+];
+export const FIREBALL_PAL = { O: '#ff4b1f', Y: '#ffb000', W: '#ffffff', K: '#1a1a1a' };
+
+export const FIREBAR_BALL = [
+  '..OOOO',
+  '.ORRRRO',
+  'ORYYYYRO',
+  'ORYWWYRO',
+  'ORYWWYRO',
+  'ORYYYYRO',
+  '.ORRRRO',
+  '..OOOO',
+];
+export const FIREBAR_PAL = { O: '#a01000', R: '#ff4b1f', Y: '#ffb000', W: '#fff7c0' };
+
+export const QUESTION_GLYPH = [
+  '.KKKK',
+  'KK..KK',
+  '....KK',
+  '...KK',
+  '..KK',
+  '..KK',
+  '',
+  '..KK',
+];
+
+/** Renders palette-indexed rows into an offscreen canvas. Browser only. */
+export function makeSprite(rows, pal, width = 16) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = rows.length;
+  const ctx = canvas.getContext('2d');
+  rows.forEach((row, y) => {
+    for (let x = 0; x < width && x < row.length; x++) {
+      const ch = row[x];
+      if (ch === '.') continue;
+      const color = pal[ch];
+      if (!color) throw new Error(`Sprite colour "${ch}" missing from palette`);
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, 1, 1);
+    }
+  });
+  return canvas;
+}

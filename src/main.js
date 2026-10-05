@@ -1,0 +1,53 @@
+import { Game } from './game.js';
+import { createRenderer } from './render.js';
+import { createInput } from './input.js';
+import { createAudio } from './audio.js';
+
+const HI_KEY = 'neymario.highscore';
+const STEP_MS = 1000 / 60;
+
+const readHighScore = () => {
+  try {
+    return Number(localStorage.getItem(HI_KEY)) || 0;
+  } catch {
+    return 0;
+  }
+};
+
+const audio = createAudio();
+const game = new Game({
+  sfx: (name) => audio.play(name),
+  seed: Date.now() >>> 0,
+  highScore: readHighScore(),
+});
+const renderer = createRenderer(document.getElementById('screen'));
+const input = createInput(window, document.getElementById('touch'));
+input.onGesture(() => audio.unlock());
+input.onMute(() => audio.toggleMute());
+
+// Exposed for debugging from the console.
+window.neymario = game;
+
+let savedHigh = game.highScore;
+let last = performance.now();
+let acc = 0;
+
+function frame(now) {
+  acc += Math.min(now - last, 250);
+  last = now;
+  while (acc >= STEP_MS) {
+    game.update(input.state());
+    acc -= STEP_MS;
+  }
+  renderer.draw(game);
+  if (game.highScore > savedHigh) {
+    savedHigh = game.highScore;
+    try {
+      localStorage.setItem(HI_KEY, String(savedHigh));
+    } catch {
+      // Storage can be unavailable (private mode); the high score just won't persist.
+    }
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);

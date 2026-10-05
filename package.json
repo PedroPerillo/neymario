@@ -1,0 +1,14 @@
+{
+  "name": "neymario",
+  "version": "1.0.0",
+  "description": "Super Neymario: The Hexa Quest. A fan-parody platformer in the style of the NES original.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
