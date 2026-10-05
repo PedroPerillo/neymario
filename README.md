@@ -9,6 +9,7 @@ to win the Hexa.
 | Mario | Neymario (Brazil kit, blond mohawk, pink boots) |
 | Super Mushroom | Football |
 | Fire Flower | Blaze flame emblem (shoots flaming footballs) |
+| "?" block | Prize block marked with a World Cup trophy |
 | Starman | World Cup trophy |
 | 1-UP mushroom | Golden ball |
 | Goomba | Opposing defender (wears that match's kit) |

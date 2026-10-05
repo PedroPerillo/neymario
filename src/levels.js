@@ -2,12 +2,12 @@ import { ROWS, TILE, GROUND_ROW } from './constants.js';
 
 /*
  * Tile chars stored in a built level:
- *   ' ' air      '#' ground      'B' brick       '?' question block   'U' used block
+ *   ' ' air      '#' ground      'B' brick       '?' prize block (shows a World Cup trophy)   'U' used block
  *   'S' solid    'h' hidden blk  'C' coin        '=' bridge           'L' lava
  *   '[' ']' pipe top (left/right)                '{' '}' pipe body (left/right)
  *
  * `place()` accepts a few authoring shorthands that expand to a tile plus contents:
- *   'M' question block with a power-up (football, or Blaze when already big)
+ *   'M' prize block with a power-up (football, or Blaze when already big)
  *   '*' brick hiding a World Cup trophy (invincibility)
  *   'c' brick holding 10 coins
  *   '1' hidden block with a golden ball (1UP)

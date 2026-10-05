@@ -445,16 +445,23 @@ export const FIREBAR_BALL = [
 ];
 export const FIREBAR_PAL = { O: '#a01000', R: '#ff4b1f', Y: '#ffb000', W: '#fff7c0' };
 
-export const QUESTION_GLYPH = [
-  '.KKKK',
-  'KK..KK',
-  '....KK',
-  '...KK',
-  '..KK',
-  '..KK',
-  '',
-  '..KK',
+// Emblem on prize blocks (the original's "?"): a mini World Cup trophy with
+// a globe on top and green bands on the base.
+export const BLOCK_TROPHY = [
+  '...KKKK',
+  '..KWQQQK',
+  '.KWQQQQQK',
+  '.KQQQQQQK',
+  '..KQQQQK',
+  '...KQQK',
+  '...KQQK',
+  '..KQQQQK',
+  '..KGGGGK',
+  '..KQQQQK',
+  '.KGGGGGGK',
+  '.KKKKKKKK',
 ];
+export const BLOCK_TROPHY_PAL = { K: '#5a2800', Q: '#ffe680', W: '#ffffff', G: '#1f9c4a' };
 
 /** Renders palette-indexed rows into an offscreen canvas. Browser only. */
 export function makeSprite(rows, pal, width = 16) {

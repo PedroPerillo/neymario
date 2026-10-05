@@ -16,6 +16,7 @@ const cases = [
   ...S.BLAZE_PALS.map((p, i) => [`blaze ${i}`, S.BLAZE, p, 16]),
   ['trophy', S.TROPHY, S.TROPHY_PAL, 16],
   ['coin', S.COIN, S.COIN_PAL, 16],
+  ['prize-block trophy', S.BLOCK_TROPHY, S.BLOCK_TROPHY_PAL, 10],
   ['fireball', S.FIREBALL, S.FIREBALL_PAL, 8],
   ['firebar', S.FIREBAR_BALL, S.FIREBAR_PAL, 8],
 ];

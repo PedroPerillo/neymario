@@ -3,7 +3,7 @@ import {
   makeSprite, NEY_SMALL, NEY_BIG, NEY_PAL, playerPalette,
   DEFENDER, kitPalette, REFEREE, REF_PAL, VAR_SHELL, VAR_PAL, BOSS, BOSS_PAL,
   FOOTBALL, FOOTBALL_PAL, GOLDBALL_PAL, BLAZE, BLAZE_PALS, TROPHY, TROPHY_PAL,
-  COIN, COIN_PAL, FIREBALL, FIREBALL_PAL, FIREBAR_BALL, FIREBAR_PAL, QUESTION_GLYPH,
+  COIN, COIN_PAL, FIREBALL, FIREBALL_PAL, FIREBAR_BALL, FIREBAR_PAL, BLOCK_TROPHY, BLOCK_TROPHY_PAL,
 } from './sprites.js';
 
 export const SCALE = 3;
@@ -261,7 +261,7 @@ export function createRenderer(canvas) {
         drawBrick(x, y, theme);
         break;
       case '?':
-        drawQuestion(x, y, frame);
+        drawPrizeBlock(x, y, frame);
         break;
       case 'U':
         drawBevel(x, y, ['#a0703a', '#8b5a2b', '#3a2008']);
@@ -324,17 +324,14 @@ export function createRenderer(canvas) {
     }
   }
 
-  function drawQuestion(x, y, frame) {
+  function drawPrizeBlock(x, y, frame) {
     const shade = ['#f8b800', '#f8b800', '#f8b800', '#e09000', '#c06800', '#e09000'][Math.floor(frame / 8) % 6];
     rect(x, y, TILE, TILE, shade);
     rect(x, y, TILE, 1, '#ffe0a0');
     rect(x, y + 15, TILE, 1, '#8a4000');
     rect(x + 15, y, 1, TILE, '#8a4000');
     rivets(x, y, '#5a2800');
-    const glyph = sprite('qglyph', QUESTION_GLYPH, { K: '#7a3400' }, 6);
-    const glyphHi = sprite('qglyph-hi', QUESTION_GLYPH, { K: '#fff8d0' }, 6);
-    ctx.drawImage(glyph, x + 6, y + 5);
-    ctx.drawImage(glyphHi, x + 5, y + 4);
+    ctx.drawImage(sprite('block-trophy', BLOCK_TROPHY, BLOCK_TROPHY_PAL, 10), x + 3, y + 2);
   }
 
   function drawBevel(x, y, [light, mid, dark]) {
