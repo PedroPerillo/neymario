@@ -168,7 +168,7 @@ export const NEY_BIG = {
   crouch: [
     ...BIG_HEAD,
     '..GGYYGGYYYYGG',
-    '.SGYYYYYYYBBGS',
+    '.SGYYYYYYYYBBGS',
     '.SBBBBBBBBBBBBS',
     '..WWWW....WWWW',
     '.PPPPP....PPPPP',
