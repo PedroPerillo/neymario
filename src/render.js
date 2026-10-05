@@ -767,7 +767,7 @@ export function createRenderer(canvas) {
     panel(8, 156, 240, 76);
     const lines = [
       'ARROWS MOVE   Z/SPACE JUMP',
-      'X/SHIFT RUN, SHOOT, ROLL',
+      'X/SHIFT RUN + SHOOT, RUN+DOWN ROLL',
       'DOWN: CROUCH, PIPES, MID-AIR POUND',
       'JUMP OFF WALLS   P PAUSE  M MUTE',
       'A FAN PARODY - NOT AFFILIATED',

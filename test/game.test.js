@@ -608,3 +608,28 @@ test('after the corner flag, Neymario shoots into the goal: GOOOOL, confetti and
   assert.ok(scoredAt.x > goalX + 10 && scoredAt.x < goalX + 76, 'ball ended up inside the net');
   assert.equal(g.state, 'intro');
 });
+
+test('the screen shake from a pound wears off even if a pipe trip starts right away', () => {
+  const g = playing([pipeLevel]);
+  g.player.x = 4 * TILE + 3;
+  g.player.y = 11 * TILE - g.player.h;
+  g.update({});
+  g.shake = 10;
+  g.update({ down: true });
+  assert.equal(g.state, 'pipe');
+  run(g, { down: true }, 10);
+  assert.equal(g.shake, 0);
+});
+
+test('going through a pipe keeps the trophy music playing while invincible', () => {
+  const sounds = [];
+  const g = playing([pipeLevel], { sfx: (s) => sounds.push(s) });
+  g.player.x = 4 * TILE + 3;
+  g.player.y = 11 * TILE - g.player.h;
+  g.player.star = 600;
+  g.update({});
+  g.update({ down: true });
+  let guard = 0;
+  while (g.areaName === 'main' && guard++ < 200) g.update({ down: true });
+  assert.equal(sounds.filter((s) => s.startsWith('music:')).at(-1), 'music:star');
+});

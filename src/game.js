@@ -119,6 +119,7 @@ export class Game {
     const pressed = (k) => inp[k] && !prev[k];
     this.input = inp;
     this.frame++;
+    if (this.shake > 0 && !this.paused) this.shake--;
 
     switch (this.state) {
       case 'title':
@@ -171,7 +172,6 @@ export class Game {
 
   updatePlay(pressed) {
     const p = this.player;
-    if (this.shake > 0) this.shake--;
     if (this.freeze > 0) {
       this.freeze--;
       if (p.grow > 0) p.grow--;
@@ -1112,7 +1112,7 @@ export class Game {
     p.inPipe = false;
     p.onGround = false;
     this.setState('play');
-    this.sfx(`music:${this.level.theme}`);
+    this.resumeMusic();
   }
 
   /** Back to the main area, rising out of the exit pipe further along the level. */
@@ -1129,7 +1129,12 @@ export class Game {
     this.pending = this.mainPending.filter((sp) => sp.x >= this.camX);
     this.seq = { phase: 'rise', top: exit.top * TILE };
     this.sfx('pipe');
-    this.sfx(`music:${this.level.theme}`);
+    this.resumeMusic();
+  }
+
+  /** The area's theme, unless the trophy's invincibility music should keep playing. */
+  resumeMusic() {
+    this.sfx(this.player.star > 0 ? 'music:star' : `music:${this.level.theme}`);
   }
 
   // ───────────────────────────── end of level: corner flag & goal ─────────────────────────────
