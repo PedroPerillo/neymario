@@ -193,7 +193,9 @@ const STAR_FLASH = ['#ffffff', '#38d7ff', '#ff4fa3', '#ffd400'];
 export function playerPalette({ size, star }, frame) {
   if (star > 0) {
     const i = (frame >> 2) % STAR_FLASH.length;
-    return [`star${i}`, { ...NEY_PAL, H: STAR_FLASH[i], P: STAR_FLASH[(i + 2) % STAR_FLASH.length] }];
+    // h is the second hair shade the Miojo noodle hair uses; it must flash too.
+    const flash = (k) => STAR_FLASH[(i + k) % STAR_FLASH.length];
+    return [`star${i}`, { ...NEY_PAL, H: flash(0), h: flash(1), P: flash(2) }];
   }
   if (size === 'fire') {
     const i = (frame >> 3) % BLAZE_FLAMES.length;

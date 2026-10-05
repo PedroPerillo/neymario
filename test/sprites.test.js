@@ -70,3 +70,22 @@ test('the shirt shows plenty of green on both sprite sizes', () => {
   assert.ok(greens(S.NEY_SMALL.stand) >= 12, `small has ${greens(S.NEY_SMALL.stand)} green pixels`);
   assert.ok(greens(S.NEY_BIG.stand) >= 16, `big has ${greens(S.NEY_BIG.stand)} green pixels`);
 });
+
+test('every power state, with or without the trophy, can draw every Neymario frame', () => {
+  // Regression: trophy + Miojo hair used a hair shade the trophy palette lacked, crashing the renderer.
+  for (const size of ['small', 'big', 'fire', 'roll', 'pombo']) {
+    for (const star of [0, 300]) {
+      for (let frame = 0; frame < 64; frame++) {
+        const [, pal] = S.playerPalette({ size, star }, frame);
+        for (const set of [S.NEY_SMALL, S.NEY_BIG]) {
+          for (const [name, rows] of Object.entries(set)) {
+            const drawn = size === 'roll' ? S.noodleHair(rows) : rows;
+            for (const ch of drawn.join('')) {
+              if (ch !== '.') assert.ok(pal[ch], `${size} star=${star} frame ${frame} ${name}: no colour for "${ch}"`);
+            }
+          }
+        }
+      }
+    }
+  }
+});
