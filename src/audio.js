@@ -65,6 +65,7 @@ export function createAudio() {
   let muted = false;
   let track = null;
   let timer = null;
+  let current = null; // track name to come back to after a pause
 
   function unlock() {
     if (!ctx) {
@@ -189,11 +190,22 @@ export function createAudio() {
     if (!ctx) return;
     if (name.startsWith('music:')) {
       const which = name.slice(6);
-      if (which === 'stop') stopMusic();
-      else playMusic(which);
+      current = which === 'stop' ? null : which;
+      if (current) playMusic(current);
+      else stopMusic();
       return;
     }
+    // The music loop sits out a pause and picks up again afterwards.
+    if (name === 'pause') stopMusic();
+    if (name === 'resume' && current) playMusic(current);
     SFX[name]?.();
+  }
+
+  /** Silences everything while the tab is hidden (timers are throttled there anyway). */
+  function setSuspended(suspended) {
+    if (!ctx) return;
+    if (suspended) ctx.suspend();
+    else ctx.resume();
   }
 
   function toggleMute() {
@@ -202,5 +214,5 @@ export function createAudio() {
     return muted;
   }
 
-  return { unlock, play, toggleMute };
+  return { unlock, play, toggleMute, setSuspended };
 }

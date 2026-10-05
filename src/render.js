@@ -1,6 +1,6 @@
 import { TILE, ROWS, SCREEN_W, SCREEN_H, GROUND_ROW } from './constants.js';
 import {
-  makeSprite, NEY_SMALL, NEY_BIG, NEY_PAL, NEY_FIRE_PAL, STAR_SHIRTS,
+  makeSprite, NEY_SMALL, NEY_BIG, NEY_PAL, playerPalette,
   DEFENDER, kitPalette, REFEREE, REF_PAL, VAR_SHELL, VAR_PAL, BOSS, BOSS_PAL,
   FOOTBALL, FOOTBALL_PAL, GOLDBALL_PAL, BLAZE, BLAZE_PALS, TROPHY, TROPHY_PAL,
   COIN, COIN_PAL, FIREBALL, FIREBALL_PAL, FIREBAR_BALL, FIREBAR_PAL, QUESTION_GLYPH,
@@ -452,12 +452,6 @@ export function createRenderer(canvas) {
 
   // ───────────────────────────── actors ─────────────────────────────
 
-  function playerPalette(p, frame) {
-    if (p.star > 0) return [`star${(frame >> 2) % 4}`, { ...NEY_PAL, Y: STAR_SHIRTS[(frame >> 2) % 4] }];
-    if (p.size === 'fire') return ['fire', NEY_FIRE_PAL];
-    return ['base', NEY_PAL];
-  }
-
   function drawPlayer(game, cam) {
     const p = game.player;
     if (p.hidden) return;
@@ -537,11 +531,13 @@ export function createRenderer(canvas) {
         drawBoss(e, game, cam);
         break;
       case 'bossfire': {
+        // Drawn pointing the way it travels: hot white tip at the front.
         const flick = (game.frame >> 2) % 2;
+        const left = e.vx < 0;
         rect(x, e.y, e.w, e.h, '#ff4b1f');
-        rect(x + 2, e.y + 1, e.w - 6, e.h - 2, flick ? '#ffb000' : '#ffd84a');
-        rect(x - 3, e.y + 2, 3, 2, '#ff4b1f');
-        rect(x + 4 + flick * 4, e.y + 2, 4, 2, '#ffffff');
+        rect(x + (left ? 2 : 4), e.y + 1, e.w - 6, e.h - 2, flick ? '#ffb000' : '#ffd84a');
+        rect(left ? x - 3 : x + e.w, e.y + 2, 3, 2, '#ff4b1f');
+        rect(left ? x + 4 + flick * 4 : x + e.w - 8 - flick * 4, e.y + 2, 4, 2, '#ffffff');
         break;
       }
       default:

@@ -118,10 +118,8 @@ export class Game {
         }
         break;
       case 'play':
-        if (pressed('pause')) {
-          this.paused = !this.paused;
-          this.sfx(this.paused ? 'pause' : 'resume');
-        }
+        // Start doubles as pause, like the NES controller (and the touch pad's only menu button).
+        if (pressed('pause') || pressed('start')) this.setPaused(!this.paused);
         if (!this.paused) this.updatePlay(pressed);
         break;
       case 'dying':
@@ -144,7 +142,15 @@ export class Game {
       default:
         break;
     }
+    if (this.score > this.highScore) this.highScore = this.score;
     this.prev = inp;
+  }
+
+  /** Pauses or resumes a match in progress; ignored outside of play. */
+  setPaused(paused) {
+    if (this.state !== 'play' || this.paused === paused) return;
+    this.paused = paused;
+    this.sfx(paused ? 'pause' : 'resume');
   }
 
   updatePlay(pressed) {
@@ -246,7 +252,8 @@ export class Game {
       this.beginFlag();
       return;
     }
-    if (axe && overlaps(p, axe)) this.beginBridge();
+    // Triggered by crossing, like the flag, so a running jump can't sail over the cup.
+    if (axe && p.x + p.w >= axe.x) this.beginBridge();
   }
 
   setHeight(h) {
@@ -314,7 +321,7 @@ export class Game {
     p.dead = true;
     p.fell = fell;
     p.size = 'small';
-    p.h = SMALL_H;
+    this.setHeight(SMALL_H);
     p.vx = 0;
     p.vy = fell ? 0 : -4.5;
     p.deathDelay = fell ? 0 : 30;
@@ -341,7 +348,6 @@ export class Game {
       this.loadLevel(this.levelIndex);
       this.setState('intro', 150);
     } else {
-      this.recordHighScore();
       this.setState('gameover', 300);
       this.sfx('gameover');
     }
@@ -374,10 +380,6 @@ export class Game {
     this.lives++;
     this.sfx('oneup');
     if (x !== undefined) this.effects.push({ kind: 'text', text: '1UP', x, y, t: 50 });
-  }
-
-  recordHighScore() {
-    if (this.score > this.highScore) this.highScore = this.score;
   }
 
   collectCoinTiles(body) {
@@ -547,7 +549,7 @@ export class Game {
         case 'bossfire':
           e.x += e.vx;
           e.y = approach(e.y, e.targetY, 0.5);
-          if (e.x + e.w < this.camX - 16) e.remove = true;
+          if (e.x + e.w < this.camX - 16 || e.x > this.camX + SCREEN_W + 16) e.remove = true;
           break;
         default:
           break;
@@ -770,7 +772,7 @@ export class Game {
     }
     for (const o of this.entities) {
       if (o.remove || !overlaps(e, o)) continue;
-      if (ENEMIES.has(o.type) && o.state !== 'flip') {
+      if (ENEMIES.has(o.type) && o.state !== 'flip' && o.state !== 'flat') {
         this.flipKill(o, 200);
         this.popFireball(e);
         return;
@@ -816,7 +818,7 @@ export class Game {
       if (this.onScreen(e)) {
         const target = p.y + p.h - 12;
         this.entities.push({
-          type: 'bossfire', x: e.x - 20, y: e.y + 6, w: 22, h: 6, vx: -1.6,
+          type: 'bossfire', x: e.facing < 0 ? e.x - 20 : e.x + e.w - 2, y: e.y + 6, w: 22, h: 6, vx: 1.6 * e.facing,
           targetY: Math.max(4 * TILE, Math.min(target, GROUND_ROW * TILE - 8)), anim: 0,
         });
         e.mouth = 24;
@@ -960,7 +962,6 @@ export class Game {
   }
 
   win() {
-    this.recordHighScore();
     this.setState('victory', 120);
     this.sfx('victory');
   }

@@ -18,7 +18,7 @@ const SMALL_BODY = [
   '.....GGGGGG',
   '...GGYYGGYYGG',
   '..SGYYYYYYBYGS',
-  '..S.YYYYYYYY.S',
+  '..S.GYYYYYYG.S',
 ];
 const SMALL_LEGS = {
   stand: [
@@ -179,10 +179,26 @@ export const NEY_PAL = {
   H: '#f3d36b', D: '#3b2716', S: '#c98b57', K: '#1a1a1a',
   Y: '#ffdf00', G: '#009c3b', B: '#1f3fae', W: '#ffffff', P: '#ff4fa3',
 };
-// Blaze power: the kit turns flame red with gold trim.
-export const NEY_FIRE_PAL = { ...NEY_PAL, Y: '#ff4b1f', G: '#ffd400', B: '#ffffff', W: '#ff4b1f' };
-// Trophy invincibility cycles the shirt through these.
-export const STAR_SHIRTS = ['#ffdf00', '#ff4b1f', '#ffffff', '#38d7ff'];
+// The Brazil kit never changes. Power states show on the mohawk and boots:
+// Blaze sets them flickering like flames, the trophy flashes them rainbow.
+const BLAZE_FLAMES = [
+  { H: '#ff6a00', P: '#ff2a00' },
+  { H: '#ffb000', P: '#ff6a00' },
+];
+const STAR_FLASH = ['#ffffff', '#38d7ff', '#ff4fa3', '#ffd400'];
+
+/** Palette for Neymario's current power state. Returns [cacheKey, palette]. */
+export function playerPalette({ size, star }, frame) {
+  if (star > 0) {
+    const i = (frame >> 2) % STAR_FLASH.length;
+    return [`star${i}`, { ...NEY_PAL, H: STAR_FLASH[i], P: STAR_FLASH[(i + 2) % STAR_FLASH.length] }];
+  }
+  if (size === 'fire') {
+    const i = (frame >> 3) % BLAZE_FLAMES.length;
+    return [`fire${i}`, { ...NEY_PAL, ...BLAZE_FLAMES[i] }];
+  }
+  return ['base', NEY_PAL];
+}
 
 // ── Opponents ─────────────────────────────────────────────────────────────
 // A/a shirt (two colours so Croatia gets its checkerboard), D shorts.

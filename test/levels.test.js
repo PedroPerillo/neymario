@@ -55,3 +55,12 @@ test('building a level twice yields independent copies', () => {
   assert.equal(b.tiles[9][16], '?');
   assert.ok(b.contents.size > 0);
 });
+
+test("no opponent's kit could be mistaken for Neymario's yellow shirt", () => {
+  for (const def of LEVELS) {
+    assert.notEqual(def.kit.shirt.toLowerCase(), '#fcd116', def.id);
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(def.kit.shirt.slice(i, i + 2), 16));
+    const yellowish = r > 200 && g > 170 && b < 100;
+    assert.ok(!yellowish, `${def.id} defenders wear a yellow shirt`);
+  }
+});

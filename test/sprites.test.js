@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import * as S from '../src/sprites.js';
 
 const cases = [
-  ...Object.entries(S.NEY_SMALL).flatMap(([n, rows]) => [[`small ${n}`, rows, S.NEY_PAL, 16], [`small ${n} fire`, rows, S.NEY_FIRE_PAL, 16]]),
-  ...Object.entries(S.NEY_BIG).flatMap(([n, rows]) => [[`big ${n}`, rows, S.NEY_PAL, 16], [`big ${n} fire`, rows, S.NEY_FIRE_PAL, 16]]),
+  ...Object.entries(S.NEY_SMALL).map(([n, rows]) => [`small ${n}`, rows, S.NEY_PAL, 16]),
+  ...Object.entries(S.NEY_BIG).map(([n, rows]) => [`big ${n}`, rows, S.NEY_PAL, 16]),
   ['defender', S.DEFENDER, S.kitPalette({ shirt: 1, shirt2: 1, shorts: 1, skin: 1, hair: 1 }), 16],
   ['referee walk1', S.REFEREE.walk1, S.REF_PAL, 16],
   ['referee walk2', S.REFEREE.walk2, S.REF_PAL, 16],
@@ -34,4 +34,35 @@ test('player sprites are 16px (small) and 32px (big) tall', () => {
   for (const rows of Object.values(S.NEY_SMALL)) assert.equal(rows.length, 16);
   for (const [name, rows] of Object.entries(S.NEY_BIG)) assert.equal(rows.length, name === 'crouch' ? 16 : 32, name);
   assert.equal(S.BOSS.closed.length, 32);
+});
+
+test('Neymario always wears the Brazil kit, whatever his power state', () => {
+  const states = [
+    { size: 'small', star: 0 }, { size: 'big', star: 0 }, { size: 'fire', star: 0 },
+    { size: 'small', star: 300 }, { size: 'fire', star: 300 },
+  ];
+  for (const state of states) {
+    for (let frame = 0; frame < 64; frame++) {
+      const [, pal] = S.playerPalette(state, frame);
+      const label = `${JSON.stringify(state)} frame ${frame}`;
+      assert.equal(pal.Y, '#ffdf00', `${label}: yellow shirt`);
+      assert.equal(pal.G, '#009c3b', `${label}: green collar and sleeves`);
+      assert.equal(pal.B, '#1f3fae', `${label}: blue shorts`);
+      assert.equal(pal.W, '#ffffff', `${label}: white socks`);
+    }
+  }
+});
+
+test('Blaze and trophy powers are still visible on Neymario', () => {
+  const base = S.playerPalette({ size: 'big', star: 0 }, 0)[1];
+  const fire = S.playerPalette({ size: 'fire', star: 0 }, 0)[1];
+  const star = S.playerPalette({ size: 'big', star: 300 }, 0)[1];
+  assert.notEqual(fire.H, base.H);
+  assert.notEqual(star.H, base.H);
+});
+
+test('the shirt shows plenty of green on both sprite sizes', () => {
+  const greens = (rows) => rows.join('').split('').filter((c) => c === 'G').length;
+  assert.ok(greens(S.NEY_SMALL.stand) >= 12, `small has ${greens(S.NEY_SMALL.stand)} green pixels`);
+  assert.ok(greens(S.NEY_BIG.stand) >= 16, `big has ${greens(S.NEY_BIG.stand)} green pixels`);
 });

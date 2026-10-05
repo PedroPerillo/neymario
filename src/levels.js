@@ -211,7 +211,8 @@ export const LEVELS = [
     realScore: 'BRA 2-1 COL',
     tip: 'STOMP A REFEREE, THEN KICK THE VAR!',
     theme: 'dusk',
-    kit: { shirt: '#fcd116', shirt2: '#fcd116', shorts: '#003893', skin: '#c68642', hair: '#2a1a0a' },
+    // Away kit, so defenders can't be mistaken for Neymario's yellow and blue.
+    kit: { shirt: '#14204a', shirt2: '#14204a', shorts: '#ffffff', skin: '#c68642', hair: '#2a1a0a' },
     flag: { dir: 'h', colors: ['#fcd116', '#fcd116', '#003893', '#ce1126'] },
     width: 214,
     build(L) {

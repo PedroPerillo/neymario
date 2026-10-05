@@ -25,6 +25,14 @@ const input = createInput(window, document.getElementById('touch'));
 input.onGesture(() => audio.unlock());
 input.onMute(() => audio.toggleMute());
 
+// A hidden tab stops the game loop, so pause the match and silence the audio
+// rather than letting the music stutter on in the background.
+document.addEventListener('visibilitychange', () => {
+  const hidden = document.visibilityState === 'hidden';
+  if (hidden) game.setPaused(true);
+  audio.setSuspended(hidden);
+});
+
 // Exposed for debugging from the console.
 window.neymario = game;
 

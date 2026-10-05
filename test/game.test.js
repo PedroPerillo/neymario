@@ -321,3 +321,85 @@ test('pause freezes the match', () => {
   run(g, { right: true }, 10);
   assert.ok(g.player.x > x);
 });
+
+// ── review fixes ──
+
+test('a running jump cannot sail over the cup: crossing it collapses the bridge', () => {
+  const g = playing([castle]);
+  run(g, {}, 5);
+  g.player.x = 22 * TILE;
+  g.player.y = 7 * TILE; // well above the 2-tile-tall cup
+  g.player.vx = 2.6;
+  g.player.star = 9999;
+  let crossed = false;
+  for (let i = 0; i < 60 && g.state === 'play'; i++) {
+    g.update({ right: true, run: true, jump: true });
+    crossed ||= g.player.y + g.player.h < g.level.axe.y;
+  }
+  assert.ok(crossed, 'the jump really passed above the cup');
+  assert.equal(g.state, 'bridge');
+});
+
+test('a Blaze fireball passes over a defender who is already flattened', () => {
+  const g = playing([withEnemy('defender')]);
+  settle(g);
+  const d = find(g, 'defender');
+  d.state = 'flat';
+  d.timer = 30;
+  g.entities.push({ type: 'fireball', x: d.x - 4, y: d.y + 2, w: 8, h: 8, vx: 4, vy: 0, anim: 0 });
+  const score = g.score;
+  g.update({});
+  assert.equal(d.state, 'flat');
+  assert.equal(g.score, score);
+});
+
+test('Start pauses and resumes a match (the touch pad has no separate pause)', () => {
+  const sounds = [];
+  const g = playing([flatGround()], { sfx: (s) => sounds.push(s) });
+  settle(g);
+  g.update({ start: true });
+  assert.equal(g.paused, true);
+  g.update({});
+  g.update({ start: true });
+  assert.equal(g.paused, false);
+  assert.deepEqual(sounds.filter((s) => s === 'pause' || s === 'resume'), ['pause', 'resume']);
+});
+
+test('setPaused is ignored outside of a match', () => {
+  const g = new Game();
+  g.setPaused(true);
+  assert.equal(g.paused, false);
+});
+
+test('Mbappé Ditador breathes fire the way he faces, even after Neymario gets past him', () => {
+  const g = playing([castle]);
+  g.camX = 8 * TILE;
+  run(g, {}, 5);
+  const boss = find(g, 'boss');
+  g.player.x = boss.x + 60;
+  g.player.star = 9999;
+  let fire;
+  for (let i = 0; i < 200 && !fire; i++) {
+    g.player.x = boss.x + 60;
+    g.update({});
+    fire = find(g, 'bossfire');
+  }
+  assert.ok(fire);
+  assert.ok(fire.vx > 0, 'fire travels toward Neymario on his right');
+  assert.ok(fire.x >= boss.x + boss.w - 4, 'fire leaves from his front, not his back');
+});
+
+test('big Neymario keeps his feet where they were when he dies', () => {
+  const g = playing([flatGround()]);
+  g.setSize('big');
+  settle(g);
+  g.killPlayer({ fell: true });
+  assert.equal(g.player.y + g.player.h, GROUND_Y);
+});
+
+test('the high score follows the score live, not just at game over', () => {
+  const g = playing([flatGround()], { highScore: 100 });
+  g.addScore(500);
+  g.update({});
+  assert.equal(g.highScore, 500);
+});
