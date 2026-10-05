@@ -970,8 +970,12 @@ export class Game {
 
   beginBridge() {
     const p = this.player;
+    const { axe } = this.level;
+    // Make sure he overlaps the solid ground past the cup, so he lands there
+    // instead of riding the collapsing bridge into the lava.
+    if (axe && p.x + p.w < axe.x + 4) p.x = axe.x + 4 - p.w;
     p.vx = 0;
-    p.vy = 0;
+    p.vy = Math.max(p.vy, 0);
     this.entities = this.entities.filter((e) => e.type !== 'fireball' && e.type !== 'bossfire');
     this.seq = { phase: 'collapse', col: this.level.bridge ? this.level.bridge.x1 : -1, t: 0 };
     this.setState('bridge');
@@ -981,7 +985,12 @@ export class Game {
   updateBridge() {
     const s = this.seq;
     const bridge = this.level.bridge;
+    const p = this.player;
     this.updateEffects();
+    // Neymario drops straight down if he crossed the cup mid-jump.
+    p.vx = 0;
+    p.vy = Math.min(p.vy + PHYS.gravity, PHYS.maxFall);
+    p.onGround = moveBody(p, this.level).landed;
     for (const boss of this.entities.filter((e) => e.type === 'boss')) {
       boss.vx = 0;
       boss.vy = Math.min(boss.vy + 0.2, 5);

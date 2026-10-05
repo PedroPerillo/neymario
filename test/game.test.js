@@ -338,6 +338,25 @@ test('a running jump cannot sail over the cup: crossing it collapses the bridge'
   }
   assert.ok(crossed, 'the jump really passed above the cup');
   assert.equal(g.state, 'bridge');
+  let guard = 0;
+  while (g.state === 'bridge' && guard++ < 3000) g.update({});
+  assert.equal(g.state, 'victory');
+  assert.equal(g.player.y + g.player.h, GROUND_Y, 'landed on the ground past the cup');
+  assert.ok(g.player.onGround);
+});
+
+test('crossing the cup with only the leading edge still lands on solid ground', () => {
+  const g = playing([castle]);
+  run(g, {}, 5);
+  g.player.star = 9999;
+  g.player.y = 9 * TILE;
+  g.player.vx = 0;
+  g.player.x = g.level.axe.x - g.player.w; // right edge exactly on the line
+  g.update({ right: true });
+  assert.equal(g.state, 'bridge');
+  let guard = 0;
+  while (g.state === 'bridge' && guard++ < 3000) g.update({});
+  assert.equal(g.player.y + g.player.h, GROUND_Y);
 });
 
 test('a Blaze fireball passes over a defender who is already flattened', () => {
