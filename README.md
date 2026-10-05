@@ -29,6 +29,10 @@ to win the Hexa.
 
 ## Play
 
+**In your browser:** https://pedroperillo.github.io/neymario/ (works on phones too).
+
+**Locally:**
+
 ```sh
 npm start        # http://localhost:5173
 ```
