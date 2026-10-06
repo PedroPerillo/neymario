@@ -287,7 +287,7 @@ export class Game {
       pound: 0, wallDir: 0, wallGrace: 0, wallLock: 0, wallLockDir: 0,
       rolling: 0, gliding: false, flaps: 1, ridingId: null, springFloat: 0,
       jump: 0, takeoffSpeed: 0, runTimer: 0,
-      // Spin jump: `spinning` while twirling through the air; one mid-air twirl per jump.
+      // Spin jump: `spinning` during a spin jump (with its powers); `twirl` counts down a mid-air twirl (just a float).
       spinning: false, twirl: 0, twirled: false,
     };
   }
@@ -800,12 +800,15 @@ export class Game {
     for (const dx of [-6, p.w + 2]) this.effects.push({ kind: 'puff', x: p.x + dx, y: p.y + p.h - 8, t: 12 });
   }
 
-  /** Mid-air twirl: once per jump, a little lift and a slower fall. */
+  /**
+   * Mid-air twirl: once per jump, a little lift and a slower fall. It's only a
+   * float: the spin jump's powers (spin-stomping spikes, drilling bricks) stay
+   * with a deliberate spin jump from the ground, which keeps `spinning` if it twirls.
+   */
   twirl() {
     const p = this.player;
     if (p.twirled || p.onGround || p.pound) return;
     p.twirled = true;
-    p.spinning = true;
     p.twirl = PHYS.twirlFrames;
     p.vy = Math.min(p.vy, -PHYS.twirlLift);
     this.sfx('twirl');

@@ -646,7 +646,7 @@ export function createRenderer(canvas) {
     else frameName = 'stand';
 
     // Spinning: he whirls round, flipping facing every few frames, with sparkles orbiting him.
-    const twirling = p.spinning && !p.onGround && !p.dead;
+    const twirling = (p.spinning || p.twirl > 0) && !p.onGround && !p.dead;
     if (twirling) {
       frameName = !big && (game.frame >> 2) % 4 === 1 ? 'dead' : 'jump';
       const cx = p.x + p.w / 2 - cam;

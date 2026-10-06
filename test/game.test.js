@@ -1218,3 +1218,57 @@ test('a big spin jump drills through bricks underneath', () => {
   assert.equal(g.level.tiles[12][2], ' ');
   assert.equal(g.player.y + g.player.h, GROUND_Y);
 });
+
+// ── a twirl is only a float: the spin jump's powers need a real spin jump ──
+
+const doubleJumpOnto = (g) => {
+  g.update({});
+  run(g, { jump: true }, 8);
+  g.update({});
+  g.update({ jump: true });
+  assert.ok(g.player.twirl > 0, 'twirled');
+  assert.equal(g.player.spinning, false, 'but not a spin jump');
+};
+
+test('big Neymario twirling onto a brick bridge lands on it and nothing breaks', () => {
+  const g = playing([testLevel((L) => L.ground(0, 3).place(4, 10, 'BBBBBBBB').ground(14, 39))]);
+  g.setSize('big');
+  g.player.x = 6 * TILE;
+  g.player.y = 10 * TILE - g.player.h;
+  settle(g);
+  doubleJumpOnto(g);
+  run(g, {}, 120);
+  assert.equal(g.level.tiles[10].slice(4, 12).join(''), 'BBBBBBBB');
+  assert.equal(g.state, 'play');
+  assert.equal(g.player.y + g.player.h, 10 * TILE, 'standing on the bridge');
+});
+
+test('twirling onto a studs-up boot hurts, as a normal stomp does', () => {
+  const g = playing([withEnemy('studs', 6)]);
+  settle(g);
+  const boot = find(g, 'studs');
+  boot.vx = 0;
+  g.player.x = boot.x;
+  g.player.y = boot.y - 40;
+  g.player.onGround = false;
+  g.player.vy = -1;
+  g.update({});
+  g.update({ jump: true });
+  assert.ok(g.player.twirl > 0);
+  run(g, {}, 60);
+  assert.equal(g.state, 'dying');
+});
+
+test('a real spin jump still drills bricks and knocks out studs, even when it twirls', () => {
+  const g = playing([flatGround((L) => L.place(1, 12, 'BBBB'))]);
+  g.setSize('big');
+  g.player.y = 12 * TILE - g.player.h;
+  settle(g);
+  g.update({ spin: true });
+  g.update({});
+  run(g, {}, 10);
+  g.update({ spin: true });
+  assert.equal(g.player.spinning, true, 'still a spin jump after the mid-air twirl');
+  run(g, {}, 80);
+  assert.equal(g.level.tiles[12][2], ' ');
+});
