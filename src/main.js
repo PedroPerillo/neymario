@@ -61,7 +61,8 @@ let acc = 0;
 let reported = false;
 
 function tick(now) {
-  acc += Math.min(now - last, 250);
+  // Capped so a stall (or a run of failed frames that never drained it) can't replay a burst of catch-up ticks.
+  acc = Math.min(acc + (now - last), 250);
   last = now;
   while (acc >= STEP_MS) {
     game.update(input.state());
