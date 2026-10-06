@@ -503,7 +503,7 @@ test('Pombo feather: hold jump to glide down slowly, and flap once in mid-air', 
   assert.ok(g.player.gliding);
   g.update({});
   g.update({ jump: true });
-  assert.equal(g.player.vy, -PHYS.flapVel + PHYS.gravityHold, 'flapped');
+  assert.equal(g.player.vy, -PHYS.flapVel + PHYS.jumps[g.player.jump].hold, 'flapped');
   g.update({});
   const vy = g.player.vy;
   g.update({ jump: true });
@@ -850,7 +850,7 @@ test('ice is slippery: Neymario slides much further after letting go', () => {
   const slide = (lvl) => {
     const g = playing([lvl]);
     settle(g);
-    run(g, { right: true, run: true }, 60);
+    g.player.vx = 2;
     const x = g.player.x;
     run(g, {}, 120);
     return g.player.x - x;
@@ -975,4 +975,59 @@ test('ground-pounding a studs-up boot hurts, like stomping it', () => {
   g.update({ down: true });
   run(g, {}, 40);
   assert.equal(g.state, 'dying');
+});
+
+// ── NES-style movement ──
+
+test('Neymario builds up to full sprint gradually, like the original', () => {
+  const g = playing([flatGround()]);
+  settle(g);
+  let frames = 0;
+  while (Math.abs(g.player.vx) < PHYS.runMax && frames < 200) {
+    g.update({ right: true, run: true });
+    frames++;
+  }
+  assert.ok(frames >= 40 && frames <= 60, `took ${frames} frames to reach top speed`);
+});
+
+test('letting go mid-sprint slides to a stop instead of stopping dead', () => {
+  const g = playing([flatGround()]);
+  settle(g);
+  g.player.vx = PHYS.runMax;
+  const x = g.player.x;
+  let frames = 0;
+  while (g.player.vx > 0 && frames < 200) {
+    g.update({});
+    frames++;
+  }
+  assert.ok(g.player.x - x > 50, `slid ${(g.player.x - x).toFixed(0)}px`);
+  assert.ok(frames > 40);
+});
+
+test('turning round at speed skids first', () => {
+  const g = playing([flatGround()]);
+  settle(g);
+  g.player.vx = PHYS.runMax;
+  g.update({ left: true });
+  assert.ok(g.player.skid);
+  assert.ok(g.player.vx > 0, 'still moving forward while skidding');
+});
+
+test('a running jump goes higher than a standing one', () => {
+  const peak = (vx) => {
+    const g = playing([flatGround()]);
+    settle(g);
+    g.player.vx = vx;
+    g.update({ right: vx > 0, run: true });
+    let top = Infinity;
+    for (let i = 0; i < 80; i++) {
+      g.update({ right: vx > 0, run: true, jump: true });
+      top = Math.min(top, g.player.y + g.player.h);
+    }
+    return GROUND_Y - top;
+  };
+  const standing = peak(0);
+  const sprinting = peak(PHYS.runMax);
+  assert.ok(standing > 4 * TILE, `standing jump ${standing}px clears a 4-tall pipe`);
+  assert.ok(sprinting > standing + 10, `sprinting ${sprinting}px vs standing ${standing}px`);
 });

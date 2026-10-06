@@ -114,7 +114,7 @@ function candidates(game, { burst, horizon }) {
  */
 export function autoplay(game, { maxFrames = 12000, burst = 10, horizon = 90, maxNodes = 3000 } = {}) {
   const opts = { burst, horizon };
-  let node = { game: cloneGame(game), plans: null, next: 0, inputs: [] };
+  let node = { game: cloneGame(game), plans: null, next: 0, inputs: [], bestX: game.player.x, stall: 0 };
   const stack = [];
   let best = node;
   let found = null;
@@ -134,7 +134,14 @@ export function autoplay(game, { maxFrames = 12000, burst = 10, horizon = 90, ma
       if (child.state !== 'play') break;
     }
     if (child.state === 'dying') continue;
-    const next = { game: child, plans: null, next: 0, inputs: node.inputs.concat(plan.inputs) };
+    // A branch that stops making headway (bouncing off a wall, pacing) is a dead end too.
+    const gained = child.player.x > node.bestX + 4;
+    const stall = gained ? 0 : node.stall + plan.inputs.length;
+    if (stall > 480) continue;
+    const next = {
+      game: child, plans: null, next: 0, inputs: node.inputs.concat(plan.inputs),
+      bestX: Math.max(node.bestX, child.player.x), stall,
+    };
     if (finished(child) || child.levelIndex !== game.levelIndex) {
       found = next;
       break;

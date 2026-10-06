@@ -4,20 +4,29 @@ export const SCREEN_W = 256;
 export const SCREEN_H = 240;
 export const GROUND_ROW = 13;
 
-// Movement tuning, in pixels per frame at 60 fps. Loosely modelled on the NES original.
+// Movement tuning, in pixels per frame at 60 fps: the NES original's values,
+// converted from its sub-pixel units. Mario builds up speed, slides when you
+// let go, skids when you turn around, and jumps higher the faster he runs.
 export const PHYS = {
-  walkAccel: 0.055,
-  runAccel: 0.085,
-  walkMax: 1.5,
-  runMax: 2.6,
-  friction: 0.09,
-  skidDecel: 0.18,
-  airTurn: 0.08,
-  jumpVel: 4.3,
-  jumpRunBonus: 0.17,
-  gravity: 0.42,
-  gravityHold: 0.12,
+  minWalk: 0.0742, // starting speed from a standstill
+  walkAccel: 0.0371,
+  runAccel: 0.0557,
+  releaseDecel: 0.0508, // sliding to a stop after letting go
+  skidDecel: 0.1016,
+  skidTurn: 0.5625, // below this while skidding, he turns right round
+  walkMax: 1.5625,
+  runMax: 2.5625,
+  // Jump launch and gravity depend on horizontal speed at take-off: [speed below, launch, gravity holding jump, gravity otherwise].
+  jumps: [
+    { below: 1.0, vel: 4.0, hold: 0.125, fall: 0.4375 },
+    { below: 2.3125, vel: 4.0, hold: 0.1172, fall: 0.375 },
+    { below: Infinity, vel: 5.0, hold: 0.1563, fall: 0.5625 },
+  ],
+  // In mid-air you keep momentum: turning back is slower than on the ground.
+  airBrakeFast: 0.0508, // turning back after a fast take-off
   maxFall: 4.5,
+  // Simple falls (celebrations, bridges) use the standing-jump gravity.
+  gravity: 0.4375,
   stompBounce: 3.6,
   stompBounceHeld: 5.0,
   // Extra moves.

@@ -374,14 +374,14 @@ export const LEVELS = [
       L.place(25, 10, 'SSSS').place(25, 9, 'CCCC');
       L.lift(31, 9, 3, { dx: 5 });
       L.place(41, 8, 'SSSS').enemy('defender', 42, 7);
-      L.lift(47, 10, 3, { dy: -4, speed: 0.5 });
+      L.lift(47, 10, 3, { dy: -4, speed: 0.8 });
       L.place(52, 5, 'SSSSSS').place(52, 4, 'CCCCCC').enemy('drone', 56, 2);
       L.place(60, 8, 'SSS');
       L.lift(65, 8, 3, { dx: 6, speed: 0.7 });
       L.ground(75, 95).place(78, 9, 'B?B?B').checkpointAt(80);
       L.enemy('defender', 84).enemy('defender', 86).enemy('drone', 90, 8).place(92, 9, 'M');
       L.place(98, 10, 'SSS');
-      L.lift(103, 10, 3, { dy: -5, speed: 0.5 });
+      L.lift(103, 10, 3, { dy: -5, speed: 0.8 });
       L.place(108, 5, 'SSSSS').enemy('drone', 110, 2);
       L.lift(115, 6, 3, { dx: 6 });
       L.place(125, 7, 'SSSS').place(125, 6, 'C*CC').place(131, 9, 'SS');
@@ -495,7 +495,7 @@ export const LEVELS = [
       L.lift(86, 9, 3, { dx: 3, speed: 0.5 });
       L.ground(92, 125).checkpointAt(100).enemy('matryoshka', 104).place(108, 9, '?B*B?');
       L.exitPipe(116, 3).cannon(122);
-      L.lift(127, 11, 3, { dy: -5, speed: 0.5 });
+      L.lift(127, 11, 3, { dy: -5, speed: 0.8 });
       L.place(132, 6, 'SSSS').place(132, 5, 'CCCC').enemy('drone', 134, 3);
       L.lift(138, 6, 3, { dx: 6 });
       L.ground(151, 213).enemy('referee', 156).enemy('matryoshka', 162);
@@ -682,7 +682,7 @@ export const LEVELS = [
       L.ground(45, 70).cannon(50).fill(54, 3, 8, 4, '#').firebar(58, 7, { speed: -0.045 });
       L.enemy('referee', 64).place(67, 9, '?');
       L.lava(71, 84).bubble(72).bubble(82).place(74, 10, 'SS');
-      L.lift(78, 9, 3, { dy: -3, speed: 0.5 });
+      L.lift(78, 9, 3, { dy: -3, speed: 0.8 });
       L.ground(85, 120).checkpointAt(88).firebar(92, 9, { speed: 0.05, length: 7 });
       L.enemy('defender', 98).enemy('defender', 100).place(104, 12, 'S').cannon(104, 11);
       L.place(108, 9, 'B*B').firebar(114, 6, { speed: -0.04 });

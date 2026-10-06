@@ -286,6 +286,7 @@ export class Game {
       // the Miojo roll, the feather's glide and mid-air flap.
       pound: 0, wallDir: 0, wallGrace: 0, wallLock: 0, wallLockDir: 0,
       rolling: 0, gliding: false, flaps: 1, ridingId: null, springFloat: 0,
+      jump: 0, airMax: PHYS.walkMax, takeoffSpeed: 0,
     };
   }
 
@@ -397,7 +398,7 @@ export class Game {
     if (inp.down && p.onGround && this.tryEnterPipe()) return;
 
     // The 2018 roll: Miojo-haired Neymario rolls through defenders and bricks.
-    if (p.size === 'roll' && p.onGround && !p.rolling && pressed('down') && Math.abs(p.vx) >= 1.2) this.startRoll();
+    if (p.size === 'roll' && p.onGround && !p.rolling && pressed('down') && Math.abs(p.vx) >= 1.0) this.startRoll();
     else if (p.rolling > 0 && --p.rolling === 0) this.endRoll();
 
     if (!p.rolling && p.size !== 'small' && p.onGround && inp.down !== p.crouch) {
@@ -411,36 +412,24 @@ export class Game {
     }
 
     const dir = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
-    const ice = p.onGround && this.onIce(p);
-    const max = inp.run ? PHYS.runMax : PHYS.walkMax;
-    const accel = (inp.run ? PHYS.runAccel : PHYS.walkAccel) * (ice ? PHYS.iceAccel : 1);
-    const friction = PHYS.friction * (ice ? PHYS.iceFriction : 1);
-    p.skid = false;
-    if (p.rolling) {
-      p.vx = p.facing * PHYS.rollSpeed;
-    } else if (p.pound) {
-      p.vx = 0;
-    } else if (dir !== 0 && !(p.crouch && p.onGround) && !(p.wallLock > 0 && dir === p.wallLockDir)) {
-      if (p.onGround) p.facing = dir;
-      if (p.vx * dir < 0) {
-        p.vx += dir * (p.onGround ? PHYS.skidDecel * (ice ? PHYS.iceSkid : 1) : PHYS.airTurn);
-        p.skid = p.onGround;
-      } else if (Math.abs(p.vx) < max) {
-        p.vx = dir * Math.min(Math.abs(p.vx) + accel, max);
-      } else if (p.onGround) {
-        p.vx = dir * Math.max(Math.abs(p.vx) - friction, max);
-      }
-    } else if (p.onGround) {
-      p.vx = approach(p.vx, 0, friction);
-    }
+    this.moveHorizontally(p, inp);
 
+    let launched = false;
     if (pressed('jump') && !p.pound) {
       if (p.onGround) {
-        p.vy = -(PHYS.jumpVel + Math.abs(p.vx) * PHYS.jumpRunBonus);
+        // Speed at take-off picks the jump: a running jump launches harder and floats differently.
+        const speed = Math.abs(p.vx);
+        p.jump = PHYS.jumps.findIndex((j) => speed < j.below);
+        p.vy = -PHYS.jumps[p.jump].vel;
+        p.airMax = speed > PHYS.walkMax ? PHYS.runMax : PHYS.walkMax;
+        p.takeoffSpeed = speed;
         p.onGround = false;
+        launched = true;
         this.sfx(p.size === 'small' ? 'jump' : 'jumpBig');
       } else if (p.wallGrace > 0) {
-        p.vy = -PHYS.jumpVel;
+        p.jump = 1;
+        p.airMax = PHYS.runMax;
+        p.vy = -PHYS.jumps[1].vel;
         p.vx = -p.wallDir * PHYS.wallJumpX;
         p.facing = -p.wallDir;
         p.wallLock = PHYS.wallLock;
@@ -470,8 +459,10 @@ export class Game {
     } else {
       // A trampoline launch floats for a moment even if jump isn't held.
       if (p.springFloat > 0) p.springFloat--;
-      const gravity = p.vy < 0 && (inp.jump || p.springFloat > 0) ? PHYS.gravityHold : PHYS.gravity;
-      p.vy = Math.min(p.vy + gravity, PHYS.maxFall);
+      // Like the original, the launch frame moves at full speed before gravity kicks in.
+      const j = PHYS.jumps[p.jump];
+      const gravity = p.vy < 0 && (inp.jump || p.springFloat > 0) ? j.hold : j.fall;
+      if (!launched) p.vy = Math.min(p.vy + gravity, PHYS.maxFall);
       if (p.wallGrace === PHYS.wallGraceFrames && p.vy > PHYS.wallSlide) p.vy = PHYS.wallSlide;
       if (p.size === 'pombo' && inp.jump && p.vy > PHYS.glideFall) {
         p.vy = PHYS.glideFall;
@@ -538,6 +529,63 @@ export class Game {
     // Triggered by crossing, like the flag, so a running jump can't sail over the cup —
     // but the cup is only yours once Mbappé Ditador is beaten.
     if (axe && p.x + p.w >= axe.x && this.bossBeaten()) this.beginBridge();
+  }
+
+  /**
+   * Walking, running, sliding and skidding, NES-style. On the ground you build
+   * up speed and slide to a stop; in the air you keep your take-off momentum
+   * and can only nudge it.
+   */
+  moveHorizontally(p, inp) {
+    const dir = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
+    const ice = p.onGround && this.onIce(p);
+    const grip = ice ? PHYS.iceAccel : 1;
+    const release = PHYS.releaseDecel * (ice ? PHYS.iceFriction : 1);
+    const speed = Math.abs(p.vx);
+    p.skid = false;
+    if (p.onGround) {
+      // Gravity for falling off a ledge follows the current speed, like a jump would.
+      p.jump = PHYS.jumps.findIndex((jp) => speed < jp.below);
+      p.airMax = speed > PHYS.walkMax ? PHYS.runMax : PHYS.walkMax;
+      p.takeoffSpeed = speed;
+    }
+    if (p.rolling) {
+      p.vx = p.facing * PHYS.rollSpeed;
+      return;
+    }
+    if (p.pound) {
+      p.vx = 0;
+      return;
+    }
+    const blocked = (p.crouch && p.onGround) || (p.wallLock > 0 && dir === p.wallLockDir);
+    if (dir === 0 || blocked) {
+      if (p.onGround) p.vx = approach(p.vx, 0, release);
+      return;
+    }
+    if (p.onGround) p.facing = dir;
+    const turning = p.vx * dir < 0;
+    if (p.onGround) {
+      const max = inp.run ? PHYS.runMax : PHYS.walkMax;
+      if (turning) {
+        p.skid = true;
+        p.vx += dir * PHYS.skidDecel * (ice ? PHYS.iceSkid : 1);
+        if (Math.abs(p.vx) < PHYS.skidTurn && !ice) p.vx = 0;
+      } else if (speed < max) {
+        const accel = (inp.run ? PHYS.runAccel : PHYS.walkAccel) * grip;
+        p.vx = dir * Math.min(Math.max(speed, PHYS.minWalk) + accel, max);
+      } else {
+        // Let go of run while sprinting: ease back down to walking speed.
+        p.vx = dir * Math.max(speed - release, max);
+      }
+      return;
+    }
+    // Airborne: speed up to the take-off cap, or brake gently when turning back.
+    if (turning) {
+      const brake = speed >= PHYS.walkMax ? PHYS.runAccel : p.takeoffSpeed >= 1.8125 ? PHYS.airBrakeFast : PHYS.walkAccel;
+      p.vx += dir * brake;
+    } else if (speed < p.airMax) {
+      p.vx = dir * Math.min(speed + (speed >= PHYS.walkMax ? PHYS.runAccel : PHYS.walkAccel), p.airMax);
+    }
   }
 
   bossBeaten() {
