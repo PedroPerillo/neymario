@@ -51,7 +51,8 @@ function runner() {
       const tx = Math.floor((p.x + p.w) / TILE);
       const foot = Math.floor((p.y + p.h - 1) / TILE);
       const wall = solidAt(g.level, tx, foot) || solidAt(g.level, tx + 1, foot);
-      const ledge = !solidAt(g.level, tx + 1, foot + 1);
+      const pad = g.entities.some((e) => e.type === 'spring' && Math.abs(e.x - (tx + 1) * TILE) < TILE * 2);
+      const ledge = !solidAt(g.level, tx + 1, foot + 1) && !p.ridingId && !pad;
       // One released frame first, so the jump registers as a fresh press.
       if (wall || ledge) hold = 41;
     }
@@ -67,48 +68,86 @@ const ACTIONS = [
   { right: true, jump: true },
   { right: true },
   {},
+  { jump: true },
   { left: true },
   { left: true, jump: true },
 ];
 
+const invincible = (g) => { g.player.star = 9999; };
+const finished = (g) => g.state === 'flag' || g.state === 'bridge';
+
 /**
- * Greedy lookahead player: every few frames it tries each action for a short
- * burst, then continues running right, and keeps whichever future survives
- * and gets furthest. Enemies are ignored via permanent invincibility so the
- * test is about level geometry being finishable.
+ * Candidate moves from this position, best first: each tries one action for a
+ * short burst, then keeps running with `runner`, and is scored by how far it
+ * gets without dying. A plan that reaches the end keeps its whole input list.
  */
-export function autoplay(game, { maxFrames = 12000, burst = 10, horizon = 90 } = {}) {
-  let frames = 0;
-  const startLevel = game.levelIndex;
-  const invincible = (g) => { g.player.star = 9999; };
-  while (game.state === 'play' && game.levelIndex === startLevel && frames < maxFrames) {
-    let best = null;
-    for (const action of ACTIONS) {
-      for (const hold of [burst, burst * 3]) {
-        const sim = cloneGame(game);
-        sim.sfx = () => {};
-        const cont = runner();
-        const inputs = [];
-        let alive = true;
-        for (let i = 0; i < horizon; i++) {
-          invincible(sim);
-          const input = i < hold ? action : cont(sim);
-          inputs.push(input);
-          sim.update(input);
-          if (sim.state === 'dying') { alive = false; break; }
-          if (sim.state !== 'play') break;
-        }
-        const done = sim.state === 'flag' || sim.state === 'bridge';
-        const score = !alive ? -Infinity : done ? Infinity : sim.player.x + (sim.player.onGround ? 8 : 0);
-        if (!best || score > best.score) best = { score, inputs: done ? inputs : inputs.slice(0, hold) };
+function candidates(game, { burst, horizon }) {
+  const plans = [];
+  for (const action of ACTIONS) {
+    for (const hold of [burst, burst * 3, burst * 6]) {
+      const sim = cloneGame(game);
+      sim.sfx = () => {};
+      const cont = runner();
+      const inputs = [];
+      let alive = true;
+      for (let i = 0; i < horizon; i++) {
+        invincible(sim);
+        const input = i < hold ? action : cont(sim);
+        inputs.push(input);
+        sim.update(input);
+        if (sim.state === 'dying') { alive = false; break; }
+        if (sim.state !== 'play') break;
       }
-    }
-    for (const input of best.inputs) {
-      if (game.state !== 'play') break;
-      invincible(game);
-      game.update(input);
-      frames++;
+      if (!alive) continue;
+      const done = finished(sim);
+      plans.push({ score: done ? Infinity : sim.player.x + (sim.player.onGround ? 8 : 0), inputs: done ? inputs : inputs.slice(0, hold) });
     }
   }
-  return frames;
+  return plans.sort((a, b) => b.score - a.score);
+}
+
+/**
+ * Lookahead player used to prove levels are finishable: a depth-first search
+ * over short bursts of input that backtracks out of dead ends, then replays
+ * the winning inputs on the real game. Enemies are ignored via permanent
+ * invincibility, so this checks level geometry (gaps, walls, lifts, springs).
+ */
+export function autoplay(game, { maxFrames = 12000, burst = 10, horizon = 90, maxNodes = 3000 } = {}) {
+  const opts = { burst, horizon };
+  let node = { game: cloneGame(game), plans: null, next: 0, inputs: [] };
+  const stack = [];
+  let best = node;
+  let found = null;
+  for (let expanded = 0; expanded < maxNodes && !found; expanded++) {
+    node.plans ??= candidates(node.game, opts);
+    if (node.next >= node.plans.length || node.inputs.length > maxFrames) {
+      node = stack.pop();
+      if (!node) break;
+      continue;
+    }
+    const plan = node.plans[node.next++];
+    const child = cloneGame(node.game);
+    child.sfx = () => {};
+    for (const input of plan.inputs) {
+      invincible(child);
+      child.update(input);
+      if (child.state !== 'play') break;
+    }
+    if (child.state === 'dying') continue;
+    const next = { game: child, plans: null, next: 0, inputs: node.inputs.concat(plan.inputs) };
+    if (finished(child) || child.levelIndex !== game.levelIndex) {
+      found = next;
+      break;
+    }
+    if (child.player.x > best.game.player.x) best = next;
+    stack.push(node);
+    node = next;
+  }
+  const path = (found ?? best).inputs;
+  for (const input of path) {
+    if (game.state !== 'play') break;
+    invincible(game);
+    game.update(input);
+  }
+  return path.length;
 }

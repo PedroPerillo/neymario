@@ -5,12 +5,16 @@ import { Game } from '../src/game.js';
 import { TILE, ROWS, GROUND_ROW } from '../src/constants.js';
 import { autoplay } from './helpers.js';
 
-const KNOWN_TILES = new Set([' ', '#', 'B', '?', 'U', 'S', 'h', 'C', '=', 'L', '[', ']', '{', '}', '(', ')', '-', '_']);
+const KNOWN_TILES = new Set([' ', '#', 'B', '?', 'U', 'S', 'h', 'C', '=', 'L', '[', ']', '{', '}', '(', ')', '-', '_', 'I', 'X', 'K', 'G']);
 
-test('there are six World Cup matches and a final castle', () => {
-  assert.equal(LEVELS.length, 7);
-  assert.deepEqual(LEVELS.map((l) => l.theme === 'castle'), [false, false, false, false, false, false, true]);
+test("every one of Neymar's World Cup matches, then the two-part Final", () => {
+  assert.equal(LEVELS.length, 15);
+  assert.deepEqual(LEVELS.map((l) => l.cup), [
+    ...Array(5).fill('WORLD CUP 2014'), ...Array(5).fill('WORLD CUP 2018'), ...Array(3).fill('WORLD CUP 2022'),
+    'THE FINAL', 'THE FINAL',
+  ]);
   assert.equal(LEVELS.at(-1).opponent, 'FRANCE');
+  assert.equal(new Set(LEVELS.map((l) => l.id)).size, LEVELS.length, 'unique ids');
 });
 
 for (const def of LEVELS) {
@@ -28,8 +32,9 @@ for (const def of LEVELS) {
       const [x, y] = key.split(',').map(Number);
       assert.ok(['?', 'B', 'h'].includes(level.tiles[y][x]), `contents at ${key} sit in a block`);
     }
-    if (def.theme === 'castle') {
-      assert.ok(level.axe && level.bridge, 'castle has the cup trigger and a bridge');
+    if (level.hasBoss) {
+      assert.ok(level.axe && level.bridge && level.gate, 'boss castle has the cup, a bridge and a gate');
+      assert.ok(level.gate.x * TILE <= level.axe.x, 'the gate stands in front of the cup');
       const boss = level.spawns.find((s) => s.type === 'boss');
       const bossCol = Math.floor(boss.x / TILE);
       assert.ok(bossCol >= level.bridge.x0 && bossCol <= level.bridge.x1, 'Mbappé stands on the bridge');
@@ -42,6 +47,11 @@ for (const def of LEVELS) {
     const game = new Game({ levels: LEVELS });
     game.newGame(LEVELS.indexOf(def));
     game.setState('play');
+    if (game.level.gate) {
+      // Geometry only: skip the boss fight (tested separately) by opening the gate.
+      game.bossDefeated = true;
+      for (let y = game.level.gate.y0; y <= game.level.gate.y1; y++) game.level.tiles[y][game.level.gate.x] = ' ';
+    }
     autoplay(game);
     assert.ok(['flag', 'bridge'].includes(game.state), `stuck at column ${Math.round(game.player.x / TILE)}`);
   });
@@ -68,7 +78,9 @@ test("no opponent's kit could be mistaken for Neymario's yellow shirt", () => {
 const WORLD_CUP_MATCHES = LEVELS.filter((d) => d.theme !== 'castle');
 
 test('each World Cup has its own transformation', () => {
-  assert.deepEqual(LEVELS.map((d) => d.power), ['fire', 'fire', 'roll', 'roll', 'pombo', 'pombo', 'fire']);
+  assert.deepEqual(LEVELS.map((d) => d.power), [
+    ...Array(5).fill('fire'), ...Array(5).fill('roll'), ...Array(3).fill('pombo'), 'fire', 'fire',
+  ]);
 });
 
 test('the final ends at a goal past the cup', () => {

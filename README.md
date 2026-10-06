@@ -10,10 +10,11 @@ to win the Hexa.
 | Super Mushroom | Football |
 | Fire Flower | Each World Cup has its own transformation (see below) |
 | "?" block | Prize block marked with a World Cup trophy |
-| Starman | World Cup trophy |
+| Starman | The World Cup trophy (the same trophy appears everywhere) |
 | Coins | Golden soccer balls |
 | 1-UP mushroom | Brazil #10 shirt |
 | Goomba | Opposing defender (wears that match's kit) |
+| Other enemies | Pipe goalkeepers, ball cannons, studs-up boots, camera drones, matryoshkas, falcons |
 | Koopa / shell | Referee → hides behind a kickable VAR monitor |
 | Flagpole / castle | Corner flag, then Neymario shoots into the goal: GOOOOL! |
 | Warp pipes & bonus rooms | One pipe per match leads to a hidden tunnel full of golden balls |
@@ -38,15 +39,44 @@ The kit always stays yellow and green; the power shows on the hair and boots.
 - **Wall slide & wall jump**: push into a wall while falling, then jump
 - **Pipes**: ↓ on the right pipe drops into a bonus room; walk into its sideways pipe to come back out further on
 
+## The world map
+
+An overworld split into four regions, one per World Cup: Brazil 2014 (beaches, Sugarloaf),
+Russia 2018 (snow, onion domes), Qatar 2022 (dunes, the Doha skyline) and the Final
+(a volcanic island with Mbappé Ditador's castle). Walk Neymario between stadiums with ←/→
+and press Enter to play. Winning a match flies a Brazil flag over the stadium and draws
+the path to the next one. Progress is saved in the browser: the title screen offers
+CONTINUE or NEW GAME.
+
 ## Levels
 
-1. **2014-1** Opening match vs Croatia, São Paulo
-2. **2014-2** Quarter-final vs Colombia, Fortaleza (dusk)
-3. **2018-1** Round of 16 vs Mexico, Samara (floating platforms)
-4. **2018-2** Quarter-final vs Belgium, Kazan (night)
-5. **2022-1** Group stage vs Serbia, Lusail (brick bridges)
-6. **2022-2** Quarter-final vs Croatia, Al Rayyan (night)
-7. **FINAL** vs France in the Dictator's castle: firebars, lava and the bridge boss fight
+Every World Cup match Neymar played, each with its own gimmick:
+
+| | Match | Gimmick |
+| --- | --- | --- |
+| 2014-1 | Croatia, São Paulo | The classic opener |
+| 2014-2 | Mexico, Fortaleza (0-0) | A pipe maze with goalkeepers popping out |
+| 2014-3 | Cameroon, Brasília | Treetop platforms, moving lifts, camera drones |
+| 2014-4 | Chile, Belo Horizonte | Night: ball cannons and trampolines |
+| 2014-5 | Colombia, Fortaleza | Studs-up boots you can't stomp |
+| 2018-1 | Switzerland, Rostov | Snow and slippery ice |
+| 2018-2 | Costa Rica, St Petersburg | Lifts across the canals, cannons |
+| 2018-3 | Serbia, Moscow | Matryoshkas that split in two |
+| 2018-4 | Mexico, Samara | Floating platforms and keepers |
+| 2018-5 | Belgium, Kazan | The Red Devils' night: everything at once |
+| 2022-1 | Serbia, Lusail | Brick bridges, diving falcons |
+| 2022-2 | South Korea, Stadium 974 | A stadium built from shipping containers |
+| 2022-3 | Croatia, Al Rayyan | Ends in a "penalty shootout" of cannons |
+| FINAL-1 | The Dictator's Fortress | Lava bubbles, firebars, lifts over lava |
+| FINAL-2 | The Dictator's Castle | Beat Mbappé Ditador to open the gate to the cup |
+
+Each match has a hidden bonus room behind one pipe and a halfway checkpoint flag.
+
+## Mbappé Ditador
+
+He guards the World Cup trophy behind a locked gate. Stomp him, roll into him,
+ground-pound him (double damage) or hit him with Blaze fireballs: five hits and he
+tumbles into the lava. He gets angry, faster and more fiery, at low health.
 
 ## Play
 
@@ -78,7 +108,8 @@ proves every level can be finished.
 
 - `src/game.js` holds game rules and the state machine (title → intro → play → flag/bridge → victory)
 - `src/physics.js` handles tile collision
-- `src/levels.js` has the level builder DSL and the seven levels
+- `src/levels.js` has the level builder DSL and all fifteen levels
+- `src/worldmap.js` holds the overworld layout and `src/maprender.js` draws it
 - `src/render.js` and `src/sprites.js` do the canvas drawing; all art is procedural pixel strings
 - `src/audio.js` synthesises WebAudio sound effects and original music loops
 - `src/input.js` handles keyboard and touch input

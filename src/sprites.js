@@ -390,25 +390,27 @@ export const BLAZE_PALS = [
   { K: '#2a0000', R: '#ff5a1f', O: '#ffb000', Y: '#fff3a0', W: '#ffffff' },
 ];
 
+// The FIFA World Cup trophy: a globe held up by two spiralling figures,
+// with green malachite bands on the base. Used everywhere a trophy appears.
 export const TROPHY = [
-  '....KKKKKKKK',
-  '.KKKQQQQQQQQKKK',
-  'KQQKQQQQQWQQKQQK',
-  'KQ.KQQQQQWQQK.QK',
-  'KQ.KQQQQQQQQK.QK',
-  '.KQKQQQQQQQQKQK',
-  '..KKQQQQQQQQKK',
-  '....KQQQQQQK',
-  '.....KQQQQK',
-  '......KQQK',
-  '......KQQK',
-  '.....KGGGGK',
-  '....KQQQQQQK',
+  '.....KKKKKK',
+  '....KWWQQQQK',
+  '...KWQQQQQQdK',
+  '...KQQQQQQQdK',
+  '...KQQQQQQddK',
+  '....KQQQQddK',
+  '...KQKKddKKQK',
+  '...KQQKQQKQQK',
+  '....KQQKKQQK',
+  '.....KQQQdK',
+  '.....KQQQdK',
   '....KGGGGGGK',
-  '...KQQQQQQQQK',
+  '....KQQQQQdK',
+  '....KGGGGGGK',
+  '...KQQQQQQddK',
   '...KKKKKKKKKK',
 ];
-export const TROPHY_PAL = { K: '#5a3a00', Q: '#ffcc1a', W: '#fffbe0', G: '#1f9c4a' };
+export const TROPHY_PAL = { K: '#5a3a00', Q: '#ffcc1a', d: '#c88a00', W: '#fffbe0', G: '#1f9c4a' };
 
 // Coins are golden soccer balls.
 export const COIN = [
@@ -543,6 +545,134 @@ export const BLOCK_TROPHY = [
   '.KKKKKKKK',
 ];
 export const BLOCK_TROPHY_PAL = { K: '#5a2800', Q: '#ffe680', W: '#ffffff', G: '#1f9c4a' };
+
+// ── More opponents ───────────────────────────────────────────────────────
+
+// TV camera drone: hovers and patrols.
+const DRONE_BODY = [
+  '..KKKKKKKKKK',
+  '.KGGGGGGGGGGK',
+  '.KGKKKKKKKGGK',
+  '.KGKWWBKKKGGK',
+  '.KGKWBBKKRGGK',
+  '.KGKKKKKKKGGK',
+  '.KGGGGGGGGGGK',
+  '..KKKKKKKKKK',
+  '...K......K',
+  '..KK......KK',
+];
+export const DRONE = {
+  a: ['KKKKK....KKKKK', '..K........K', ...DRONE_BODY],
+  b: ['.KKK......KKK', '..K........K', ...DRONE_BODY],
+};
+export const DRONE_PAL = { K: '#151515', G: '#68727e', W: '#bfe4ff', B: '#2a5aa8', R: '#ff2020' };
+
+// Goalkeeper who pops out of pipes, gloves up. Can't be stomped.
+export const KEEPER = [
+  '.GGG........GGG',
+  'GGGGG......GGGGG',
+  'GGGGG.HHHH.GGGGG',
+  '.GGG.HHHHHH.GGG',
+  '..JJ.SSSSSS.JJ',
+  '..JJSKKSSKKSJJ',
+  '..JJSSWSSWSSJJ',
+  '..JJJSSSSSSJJJ',
+  '...JJJSKKSJJJ',
+  '...JJJJJJJJJJ',
+  '...JJJJWJJJJJ',
+  '...JJJJWJJJJJ',
+  '...JJJJJJJJJJ',
+  '....DDDDDDDD',
+  '....DDD..DDD',
+  '....SSS..SSS',
+  '....JJJ..JJJ',
+  '....JJJ..JJJ',
+  '...KKKK..KKKK',
+  '...KKKK..KKKK',
+];
+export const keeperPalette = (kit) => ({
+  G: '#ff8a00', H: kit.hair, S: kit.skin, K: '#111111', W: '#ffffff', J: '#7a2ad0', D: '#2a1060',
+});
+
+// Studs-up boot: spiky on top, so stomping it hurts.
+export const STUDS = [
+  '...W..W..W..W',
+  '..KWKKWKKWKKWK',
+  '..KRRRRRRRRRRK',
+  '.KRRRRRRRRRRRK',
+  '.KRWKRRRRWKRRK',
+  'KRRRRRRRRRRRRRK',
+  'KRRRRRRRRRRRRRK',
+  'KYYYYYYYYYYYYYK',
+  '.KKKKKKKKKKKKK',
+  '..K.K.K.K.K.K',
+];
+export const STUDS_PAL = { K: '#111111', W: '#d8dde4', R: '#e8202a', Y: '#ffdf00' };
+
+// Russian nesting doll: stomp the big one and two small ones pop out.
+export const MATRYOSHKA = {
+  big: [
+    '.....KKKKKK',
+    '....KRRRRRRK',
+    '...KRRRRRRRRK',
+    '...KRYYYYYYRK',
+    '..KRYKYYYYKYRK',
+    '..KRYYYRRYYYRK',
+    '..KRYYYYYYYYRK',
+    '..KRRYYYYYYRRK',
+    '..KRRRRRRRRRRK',
+    '.KRRRRWWWWRRRRK',
+    '.KRRRWWGGWWRRRK',
+    '.KRRWWGRRGWWRRK',
+    '.KRRWWGGGGWWRRK',
+    '.KRRRWWWWWWRRRK',
+    '.KRRRRRRRRRRRRK',
+    '.KRRRRRRRRRRRRK',
+    '..KRRRRRRRRRRK',
+    '..KRRRRRRRRRRK',
+    '...KKKKKKKKKK',
+  ],
+  small: [
+    '...KKKKKK',
+    '..KRRRRRRK',
+    '..KRYYYYRK',
+    '.KRYKYYKYRK',
+    '.KRYYRRYYRK',
+    '.KRRYYYYRRK',
+    '.KRRWWWWRRK',
+    '.KRWWGGWWRK',
+    '.KRRWWWWRRK',
+    '.KRRRRRRRRK',
+    '..KRRRRRRK',
+    '...KKKKKK',
+  ],
+};
+export const MATRYOSHKA_PAL = { K: '#2a0a0a', R: '#d4202a', Y: '#f6d2a8', W: '#fff4d0', G: '#1f9c4a' };
+
+// Qatari falcon: cruises high, then dives at Neymario. Faces left.
+export const FALCON = {
+  up: [
+    '......KK....KK',
+    '.....KBBK..KBBK',
+    '....KBBBBKKBBBK',
+    '.KKKBBBBBBBBBK',
+    'YKWKBBBBBBBBK',
+    '.KKBBWWWWBBBKK',
+    '...KBBBBBBBBBBK',
+    '....KKKKKKKKKK',
+  ],
+  down: [
+    '',
+    '.KKK',
+    'YKWKBBBBBBBBK',
+    '.KKBBWWWWBBBKK',
+    '...KBBBBBBBBBBK',
+    '....KBBBBKKBBBK',
+    '.....KBBK..KBBK',
+    '......KK....KK',
+  ],
+};
+export const FALCON_PAL = { K: '#1a1008', B: '#8a5a2a', W: '#f0e0c0', Y: '#ffc400' };
 
 /** Renders palette-indexed rows into an offscreen canvas. Browser only. */
 export function makeSprite(rows, pal, width = 16) {

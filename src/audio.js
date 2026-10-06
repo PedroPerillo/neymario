@@ -59,6 +59,17 @@ TRACKS.tunnel = {
   melody: parse('C4:2 r:2 C5:1 r:1 A#4:2 r:4 G4:2 r:2 F4:1 r:1 G4:2 r:4'),
   bass: parse('C3:2 C3:2 D#3:2 F3:2 G3:2 F3:2 D#3:2 D3:2'),
 };
+// Original bouncy march for walking the world map.
+TRACKS.map = {
+  step: 0.13,
+  shaker: true,
+  melody: parse(`
+    G4:2 C5:2 E5:2 G5:2 E5:2 C5:2 D5:4
+    F4:2 B4:2 D5:2 F5:2 E5:2 D5:2 C5:4`),
+  bass: parse('C3:4 G2:4 C3:4 G2:4 D3:4 G2:4 C3:4 C3:4'),
+};
+TRACKS.snow = TRACKS.day;
+TRACKS.port = TRACKS.day;
 TRACKS.dusk = TRACKS.day;
 TRACKS.night = TRACKS.day;
 TRACKS.desert = TRACKS.day;
@@ -153,6 +164,12 @@ export function createAudio() {
     roll: () => noise({ dur: 0.3, vol: 0.15, cutoff: 1200 }),
     walljump: () => tone({ from: 500, to: 900, dur: 0.1, vol: 0.15 }),
     flap: () => tone({ type: 'triangle', from: 700, to: 1100, dur: 0.08, vol: 0.2 }),
+    enter: () => arp(['C5', 'G5', 'C6'], 0.07),
+    checkpoint: () => arp(['G5', 'B5', 'D6', 'G6'], 0.07, { type: 'triangle' }),
+    spring: () => tone({ type: 'triangle', from: 200, to: 900, dur: 0.25, vol: 0.3 }),
+    cannon: () => { noise({ dur: 0.15, vol: 0.35, cutoff: 700 }); tone({ type: 'triangle', from: 160, to: 60, dur: 0.15, vol: 0.4 }); },
+    screech: () => tone({ type: 'sawtooth', from: 1800, to: 1200, dur: 0.25, vol: 0.08 }),
+    bosshit: () => { tone({ type: 'square', from: 600, to: 150, dur: 0.2, vol: 0.25 }); noise({ dur: 0.1, vol: 0.2, cutoff: 2000 }); },
     whistle: () => { tone({ type: 'sine', from: 2600, dur: 0.12, vol: 0.12 }); tone({ type: 'sine', from: 2600, dur: 0.35, at: 0.16, vol: 0.12 }); },
     // Stadium roar: a swelling band of noise under a short fanfare.
     goal: () => {

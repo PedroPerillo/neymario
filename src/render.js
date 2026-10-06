@@ -5,7 +5,9 @@ import {
   FOOTBALL, FOOTBALL_PAL, BLAZE, BLAZE_PALS, TROPHY, TROPHY_PAL, noodleHair,
   MATCH_BALL, MATCH_BALL_PAL, JERSEY, JERSEY_PAL, NOODLES, NOODLES_PAL, FEATHER, FEATHER_PAL,
   COIN, COIN_PAL, FIREBALL, FIREBALL_PAL, FIREBAR_BALL, FIREBAR_PAL, BLOCK_TROPHY, BLOCK_TROPHY_PAL,
+  DRONE, DRONE_PAL, KEEPER, keeperPalette, STUDS, STUDS_PAL, MATRYOSHKA, MATRYOSHKA_PAL, FALCON, FALCON_PAL,
 } from './sprites.js';
+import { drawWorldMap } from './maprender.js';
 
 export const SCALE = 3;
 const FONT = '"Press Start 2P", ui-monospace, monospace';
@@ -32,6 +34,17 @@ const THEMES = {
   castle: {
     sky: ['#000000', '#120808'], stone: true, bricksBehind: true, dirt: '#7d7d7d', dirtDark: '#3e3e3e', stoneHi: '#b8b8b8',
     brick: '#8a8a8a', mortar: '#3a3a3a', solid: ['#b0b0b0', '#808080', '#404040'],
+  },
+  // Swiss Alps in Rostov: snow on the pitch.
+  snow: {
+    sky: ['#8fb8e0', '#e8f2fc'], stands: '#45557a', roof: '#66779c', grass: ['#f4f8ff', '#e6eef8'], snowTop: true,
+    dirt: '#8a6a4a', dirtDark: '#5a4430', brick: '#b8501c', mortar: '#4a1600', solid: ['#e8eef8', '#b8c8dc', '#6a7a92'],
+  },
+  // Stadium 974 by the Gulf at sunset.
+  port: {
+    sky: ['#f08a4a', '#5a3a7a'], stands: '#2a2438', roof: '#3a3450', grass: ['#3a9a40', '#318a37'],
+    dirt: '#8a7a6a', dirtDark: '#5a4a3a', brick: '#c8602c', mortar: '#4a1a00', solid: ['#d8c8b0', '#a8987e', '#5a4a3a'],
+    lights: true,
   },
   // The bonus room under the pitch.
   tunnel: {
@@ -287,6 +300,48 @@ export function createRenderer(canvas) {
         rect(x, y - 6, TILE, 1, '#9a9a9a');
         for (let i = 0; i < TILE; i += 4) rect(x + i, y - 5 + ((i / 4) % 2), 2, 1, '#9a9a9a');
         break;
+      case 'I':
+        rect(x, y, TILE, TILE, '#a8dcf8');
+        rect(x, y, TILE, 2, '#ffffff');
+        rect(x, y + 13, TILE, 3, '#6ab0dc');
+        for (let i = 0; i < 3; i++) rect(x + 2 + i * 5, y + 4 + i, 3, 1, '#e8f8ff');
+        break;
+      case 'X': {
+        // Shipping containers, each a colour, with corrugated sides.
+        const colors = ['#c8402a', '#2a6ac8', '#e8a020', '#2a9a5a', '#8a3ac8'];
+        const c = colors[(Math.floor(tx / 3) + Math.floor(y / 32)) % colors.length];
+        rect(x, y, TILE, TILE, c);
+        for (let i = 1; i < TILE; i += 3) rect(x + i, y + 2, 1, 12, 'rgba(0,0,0,0.25)');
+        rect(x, y, TILE, 2, 'rgba(255,255,255,0.25)');
+        rect(x, y + 14, TILE, 2, 'rgba(0,0,0,0.35)');
+        break;
+      }
+      case 'K': {
+        // Ball launcher: a training machine with a ball loaded in its mouth.
+        rect(x, y, TILE, TILE, '#1d2a48');
+        rect(x, y, TILE, 2, '#3a4a78');
+        rect(x + 1, y + 13, 14, 3, '#0e1528');
+        ctx.fillStyle = '#000000';
+        ctx.beginPath();
+        ctx.arc(x + 8, y + 7, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(x + 8, y + 7, 3, 0, Math.PI * 2);
+        ctx.fill();
+        rect(x + 7, y + 6, 2, 2, '#1a1a1a');
+        break;
+      }
+      case 'G':
+        // Iron bars with gold caps: the gate in front of the cup.
+        rect(x, y, TILE, 2, '#5a5a6a');
+        for (const bx of [2, 7, 12]) {
+          rect(x + bx, y, 2, TILE, '#8a8aa0');
+          rect(x + bx, y, 1, TILE, '#c8c8dc');
+        }
+        rect(x, y + 14, TILE, 2, '#5a5a6a');
+        rect(x + 6, y + 6, 4, 4, '#ffcc1a');
+        break;
       case 'C': {
         // Golden balls tumble in place by mirroring their patches.
         const phase = Math.floor(frame / 10) % 4;
@@ -304,10 +359,10 @@ export function createRenderer(canvas) {
     rect(x + 11, y + 13, 2, 1, theme.dirtDark);
     rect(x + 9, y + 5, 1, 2, theme.dirtDark);
     if (top) {
-      // Mowed-pitch stripes, two tiles wide.
+      // Mowed-pitch stripes, two tiles wide (snow-covered in the Alps).
       rect(x, y, TILE, 6, theme.grass[Math.floor(tx / 2) % 2]);
-      rect(x, y, TILE, 1, '#8ee88e');
-      rect(x, y + 6, TILE, 1, theme.dirtDark);
+      rect(x, y, TILE, 1, theme.snowTop ? '#ffffff' : '#8ee88e');
+      rect(x, y + 6, TILE, 1, theme.snowTop ? '#b8c8dc' : theme.dirtDark);
     }
   }
 
@@ -423,6 +478,24 @@ export function createRenderer(canvas) {
     const { dir, colors } = level.flag;
     const w = 16;
     const h = 12;
+    if (dir === 'cross') {
+      rect(x, y, w, h, colors[0]);
+      rect(x + 6, y + 2, 4, 8, colors[1]);
+      rect(x + 4, y + 4, 8, 4, colors[1]);
+      return;
+    }
+    if (dir === 'disc') {
+      rect(x, y, w, h, colors[0]);
+      ctx.fillStyle = colors[1];
+      ctx.beginPath();
+      ctx.arc(x + 8, y + 6, 3.5, Math.PI, 0);
+      ctx.fill();
+      ctx.fillStyle = colors[2];
+      ctx.beginPath();
+      ctx.arc(x + 8, y + 6, 3.5, 0, Math.PI);
+      ctx.fill();
+      return;
+    }
     colors.forEach((c, i) => {
       if (dir === 'h') {
         const y0 = Math.round((i * h) / colors.length);
@@ -463,6 +536,20 @@ export function createRenderer(canvas) {
     ctx.fill();
     const flagY = game.state === 'flag' && game.seq?.flagY !== undefined ? game.seq.flagY : 3 * TILE + 4;
     drawFlag(level, poleX - 16, flagY);
+  }
+
+  /** Halfway flag: grey until Neymario passes, then the Brazil flag flies. */
+  function drawCheckpoint(game, cam) {
+    const col = game.level.checkpoint;
+    if (col === null || col === undefined || game.areaName !== 'main') return;
+    let row = 0;
+    while (row < GROUND_ROW && ' C'.includes(game.level.tiles[row][col])) row++;
+    const x = col * TILE + 7 - cam;
+    if (x < -20 || x > SCREEN_W + 20) return;
+    const ground = row * TILE;
+    rect(x, ground - 40, 2, 40, '#d8d8d8');
+    if (game.checkpointHit) drawBrazilFlag(x + 2, ground - 40);
+    else rect(x + 2, ground - 40, 14, 10, '#8a8a8a');
   }
 
   /** Goal seen side-on: front post + crossbar, net sloping back to the ground. Drawn behind the ball. */
@@ -634,6 +721,64 @@ export function createRenderer(canvas) {
         }
         break;
       }
+      case 'matryoshka': {
+        const big = e.size === 'big';
+        const img = sprite(`doll:${e.size}`, big ? MATRYOSHKA.big : MATRYOSHKA.small, MATRYOSHKA_PAL, big ? 16 : 12);
+        if (e.state === 'flat') blit(img, x - 1, e.y + e.h - 6, { h: 6 });
+        else blit(img, x - 1, e.y + e.h - img.height - ((e.anim >> 3) % 2), { flipY: e.state === 'flip' });
+        break;
+      }
+      case 'studs': {
+        const img = sprite('studs', STUDS, STUDS_PAL);
+        blit(img, x - 1, e.y + e.h - img.height, { flipX: (e.anim >> 3) % 2 === 1, flipY: e.state === 'flip' });
+        break;
+      }
+      case 'drone': {
+        const k = (e.anim >> 2) % 2 ? 'a' : 'b';
+        blit(sprite(`drone:${k}`, DRONE[k], DRONE_PAL), x - 1, e.y, { flipY: e.state === 'flip' });
+        break;
+      }
+      case 'falcon': {
+        const k = e.mode === 'dive' || (e.anim >> 3) % 2 ? 'up' : 'down';
+        blit(sprite(`falcon:${k}`, FALCON[k], FALCON_PAL), x, e.y - 1, { flipX: e.vx > 0, flipY: e.state === 'flip' });
+        break;
+      }
+      case 'keeper': {
+        const img = sprite(`keeper:${kitKey}`, KEEPER, keeperPalette(game.level.kit));
+        blit(img, x - 1, e.y, { flipY: e.state === 'flip' });
+        break;
+      }
+      case 'shot': {
+        // A fiercely struck ball with speed lines behind it.
+        const img = sprite('shotball', FOOTBALL, { O: '#1a1a1a', K: '#e8202a', W: '#f4f4f4', g: '#c8c8c8' });
+        const tail = e.vx > 0 ? -10 : 12;
+        for (let i = 0; i < 3; i++) rect(x + tail + (e.vx > 0 ? -i * 3 : i * 3), e.y + 3 + i * 3, 6, 1, 'rgba(255,255,255,0.6)');
+        ctx.drawImage(img, Math.round(x), Math.round(e.y), 12, 12);
+        break;
+      }
+      case 'lift': {
+        const castle = game.level.theme === 'castle';
+        rect(x, e.y, e.w, 8, castle ? '#8a8a8a' : '#f4f4f4');
+        rect(x, e.y, e.w, 1, castle ? '#c8c8c8' : '#ffffff');
+        rect(x, e.y + 7, e.w, 1, '#3a3a3a');
+        if (!castle) for (let i = 4; i < e.w; i += 12) rect(x + i, e.y + 1, 5, 6, '#e8202a');
+        break;
+      }
+      case 'spring': {
+        // Trampoline sunk into the pitch: a yellow pad on coiled springs.
+        const press = Math.round(e.squash / 3);
+        rect(x, e.y, TILE, TILE, '#1a1a1a');
+        for (let i = 0; i < 3; i++) rect(x + 3, e.y + 7 + i * 3 + press / 2, 10, 1, '#c8c8c8');
+        rect(x + 1, e.y + 3 + press, 14, 3, '#ffdf00');
+        rect(x + 1, e.y + 3 + press, 14, 1, '#009c3b');
+        break;
+      }
+      case 'bubble':
+        if (e.y < e.lavaTop) {
+          ctx.drawImage(sprite('firebar', FIREBAR_BALL, FIREBAR_PAL, 8), Math.round(x), Math.round(e.y), 12, 12);
+          rect(x + 3, e.y + (e.vy < 0 ? 10 : -2), 6, 2, 'rgba(255,160,0,0.6)');
+        }
+        break;
       case 'boss':
         drawBoss(e, game, cam);
         break;
@@ -655,7 +800,9 @@ export function createRenderer(canvas) {
   function drawBoss(e, game, cam) {
     if (e.hurt > 0 && (game.frame >> 1) % 2) return;
     const open = e.mouth > 0;
-    const img = sprite(`boss:${open}`, open ? BOSS.open : BOSS.closed, BOSS_PAL, 32);
+    // Angry at low health: his uniform flushes red.
+    const angry = e.angry && (game.frame >> 3) % 2;
+    const img = sprite(`boss:${open}:${angry ? 'angry' : 'calm'}`, open ? BOSS.open : BOSS.closed, angry ? { ...BOSS_PAL, N: '#8a1020', n: '#4a0810' } : BOSS_PAL, 32);
     blit(img, e.x - 2 - cam, e.y + e.h - 32, { flipX: e.facing > 0, flipY: e.state === 'dead' });
     if (e.state !== 'alive' || game.state !== 'play') return;
     const cx = Math.max(44, Math.min(SCREEN_W - 44, e.x + e.w / 2 - cam));
@@ -727,14 +874,16 @@ export function createRenderer(canvas) {
     ctx.save();
     ctx.translate(0, shake);
     drawBackground(game, theme, cam);
-    for (const e of game.entities) if (e.emerge > 0) drawEntity(e, game, cam);
+    const behind = (e) => e.emerge > 0 || e.type === 'keeper';
+    for (const e of game.entities) if (behind(e)) drawEntity(e, game, cam);
     // Going through a pipe, Neymario is drawn behind it.
     if (game.player.inPipe) drawPlayer(game, cam);
     drawCornerFlag(game, cam);
+    drawCheckpoint(game, cam);
     drawNetBack(game, cam);
     drawTiles(game, theme, cam);
     drawCupAxe(game, cam);
-    for (const e of game.entities) if (!(e.emerge > 0)) drawEntity(e, game, cam);
+    for (const e of game.entities) if (!behind(e)) drawEntity(e, game, cam);
     if (!game.player.inPipe) drawPlayer(game, cam);
     drawMatchBall(game, cam);
     drawNetFront(game, cam);
@@ -762,8 +911,15 @@ export function createRenderer(canvas) {
     blit(sprite('noodles', NOODLES, NOODLES_PAL), 116, 100);
     blit(sprite('feather', FEATHER, FEATHER_PAL), 132, 100);
     blit(sprite('boss:false', BOSS.closed, BOSS_PAL, 32), 156, 84);
-    if ((game.frame >> 5) % 2 === 0) text('PRESS ENTER', 128, 126, { align: 'center' });
-    text(`TOP- ${String(game.highScore).padStart(6, '0')}`, 128, 138, { size: 6, align: 'center', color: '#bbbbbb' });
+    const options = game.titleOptions();
+    options.forEach((opt, i) => {
+      const y = options.length > 1 ? 120 + i * 11 : 126;
+      const chosen = i === game.titleChoice % options.length;
+      text(opt, 128, y, { align: 'center', color: chosen ? '#ffffff' : '#7a7a8a' });
+      if (chosen && (game.frame >> 4) % 2 === 0) text('>', 128 - opt.length * 4 - 12, y, { color: '#ffdf00' });
+    });
+    if (game.save.complete) blit(sprite('trophy', TROPHY, TROPHY_PAL), 196, 118);
+    text(`TOP- ${String(game.highScore).padStart(6, '0')}`, 128, 143, { size: 6, align: 'center', color: '#bbbbbb' });
     panel(8, 156, 240, 76);
     const lines = [
       'ARROWS MOVE   Z/SPACE JUMP',
@@ -829,6 +985,9 @@ export function createRenderer(canvas) {
         return;
       case 'intro':
         drawIntro(game);
+        return;
+      case 'map':
+        drawWorldMap({ ctx, rect, text, sprite, blit, panel }, game);
         return;
       case 'gameover':
         drawGameOver(game);

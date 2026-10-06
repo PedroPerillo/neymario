@@ -3,12 +3,25 @@ import {
 } from './constants.js';
 import { LEVELS, buildLevel } from './levels.js';
 import { moveBody, overlaps, tileAt, isSolidChar } from './physics.js';
+import { MAP_W, NODES, pathBetween, regionAt } from './worldmap.js';
 
 export const NO_INPUT = Object.freeze({
   left: false, right: false, down: false, jump: false, run: false, start: false, pause: false,
 });
 
-const ENEMIES = new Set(['defender', 'referee']);
+// How each opponent behaves: walkers turn at walls and each other; `stomp` is
+// what a stomp does to it; spiky ones hurt Neymario if he lands on them.
+const ENEMY_INFO = {
+  defender: { walker: true, stomp: 'flat' },
+  referee: { walker: true, stomp: 'shell' },
+  matryoshka: { walker: true, stomp: 'split' },
+  studs: { walker: true, spiky: true },
+  drone: { stomp: 'fall' },
+  falcon: { stomp: 'fall' },
+  shot: { stomp: 'fall' },
+  keeper: { spiky: true },
+};
+const ENEMIES = new Set(Object.keys(ENEMY_INFO));
 const ITEMS = new Set(['football', 'blaze', 'noodles', 'feather', 'trophy', 'jersey']);
 // Each World Cup has its own transformation, released by power blocks once Neymario is big.
 const POWER_ITEM = { fire: 'blaze', roll: 'noodles', pombo: 'feather' };
@@ -17,30 +30,27 @@ const STAR_FRAMES = 600;
 const INVULN_FRAMES = 120;
 const SHELL_SPEED = 3.5;
 
-function mulberry32(seed) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
 const approach = (v, target, step) => (v < target ? Math.min(v + step, target) : Math.max(v - step, target));
 
 /**
  * The whole game simulation. Pure state + rules, no DOM: the browser shell
  * feeds it input once per 60 Hz tick and draws whatever state it is in.
  *
- * States: title → intro → play ⇄ (dying | pipe | flag | bridge) → gameover | victory.
+ * States: title → map → intro → play ⇄ (dying | pipe | flag | bridge) → map | gameover | victory.
  * A level has a main area and optionally a bonus room reached through a warp pipe.
  */
 export class Game {
-  constructor({ sfx = () => {}, seed = 1, levels = LEVELS, highScore = 0 } = {}) {
+  constructor({
+    sfx = () => {}, seed = 1, levels = LEVELS, highScore = 0, save = null, onSave = () => {},
+  } = {}) {
     this.sfx = sfx;
-    this.random = mulberry32(seed);
+    this.onSave = onSave;
+    // Progress through the World Cups: how far along the map is open, and which matches were won.
+    this.save = { unlocked: 0, cleared: [], ...(save ?? {}) };
+    this.titleChoice = 0;
+    this.nextId = 1;
+    this.checkpointFor = null;
+    this.rngState = seed >>> 0;
     this.levels = levels;
     this.highScore = highScore;
     this.prev = { ...NO_INPUT };
@@ -52,7 +62,17 @@ export class Game {
     this.carrySize = 'small';
     this.paused = false;
     this.loadLevel(0);
+    this.map = this.mapAt(0);
     this.setState('title');
+  }
+
+  /** Seeded mulberry32. The state lives on the game so a copied game replays identically. */
+  random() {
+    this.rngState = (this.rngState + 0x6d2b79f5) >>> 0;
+    let t = this.rngState;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   }
 
   setState(state, timer = 0) {
@@ -62,16 +82,128 @@ export class Game {
 
   toTitle() {
     this.loadLevel(0);
+    this.titleChoice = 0;
     this.setState('title');
   }
 
-  newGame(levelIndex = 0) {
+  resetRun() {
     this.score = 0;
     this.coins = 0;
     this.lives = 3;
     this.carrySize = 'small';
+    this.checkpointFor = null;
+  }
+
+  /** Jumps straight into a match (used by tests and the debug console). */
+  newGame(levelIndex = 0) {
+    this.resetRun();
     this.loadLevel(levelIndex);
     this.setState('intro', 150);
+  }
+
+  titleOptions() {
+    return this.save.unlocked > 0 ? ['CONTINUE', 'NEW GAME'] : ['START'];
+  }
+
+  chooseTitle(option) {
+    if (option === 'NEW GAME') {
+      this.save = { unlocked: 0, cleared: [] };
+      this.onSave(this.save);
+    }
+    this.resetRun();
+    this.enterMap(option === 'CONTINUE' ? this.save.unlocked : 0);
+  }
+
+  persist() {
+    this.onSave({ ...this.save, cleared: [...this.save.cleared] });
+  }
+
+  // ───────────────────────────── world map ─────────────────────────────
+
+  mapAt(node, reveal = null) {
+    const n = Math.max(0, Math.min(node, this.levels.length - 1, NODES.length - 1));
+    const { x, y } = NODES[n];
+    return { node: n, x, y, facing: 1, walk: null, reveal, banner: 150, camX: this.mapCam(x) };
+  }
+
+  mapCam(x) {
+    return Math.max(0, Math.min(x - SCREEN_W / 2, MAP_W - SCREEN_W));
+  }
+
+  enterMap(node, reveal = null) {
+    this.map = this.mapAt(node, reveal);
+    this.setState('map');
+    this.sfx('music:map');
+  }
+
+  updateMap(pressed) {
+    const m = this.map;
+    const inp = this.input;
+    if (m.banner > 0) m.banner--;
+    m.camX += (this.mapCam(m.x) - m.camX) * 0.12;
+    if (m.reveal) {
+      // The path to the newly unlocked stadium draws itself in before you can move.
+      if (++m.reveal.t >= 70) m.reveal = null;
+      return;
+    }
+    if (m.walk) {
+      this.stepMapWalk(m);
+      return;
+    }
+    const last = Math.min(this.save.unlocked, this.levels.length - 1, NODES.length - 1);
+    if (inp.right && m.node < last) this.startMapWalk(m.node + 1);
+    else if (inp.left && m.node > 0) this.startMapWalk(m.node - 1);
+    else if (pressed('start') || pressed('jump')) {
+      this.loadLevel(m.node);
+      this.setState('intro', 150);
+      this.sfx('music:stop');
+      this.sfx('enter');
+    }
+  }
+
+  startMapWalk(target) {
+    const m = this.map;
+    m.walk = { target, points: pathBetween(m.node, target), i: 1 };
+  }
+
+  stepMapWalk(m) {
+    const w = m.walk;
+    const pt = w.points[w.i];
+    const dx = pt.x - m.x;
+    const dy = pt.y - m.y;
+    const dist = Math.hypot(dx, dy);
+    const speed = 1.6;
+    if (dx) m.facing = Math.sign(dx);
+    if (dist > speed) {
+      m.x += (dx / dist) * speed;
+      m.y += (dy / dist) * speed;
+      return;
+    }
+    m.x = pt.x;
+    m.y = pt.y;
+    if (++w.i < w.points.length) return;
+    const before = regionAt(NODES[m.node].x);
+    m.node = w.target;
+    m.walk = null;
+    if (regionAt(m.x) !== before) m.banner = 150;
+  }
+
+  /** A match was won: mark it, open the next stadium on the map and head back there. */
+  levelCleared() {
+    const id = this.levels[this.levelIndex].id;
+    if (!this.save.cleared.includes(id)) this.save.cleared.push(id);
+    this.checkpointFor = null;
+    const next = this.levelIndex + 1;
+    if (next >= this.levels.length) {
+      this.save.complete = true;
+      this.persist();
+      this.win();
+      return;
+    }
+    const opened = next > this.save.unlocked;
+    if (opened) this.save.unlocked = next;
+    this.persist();
+    this.enterMap(this.levelIndex, opened ? { from: this.levelIndex, to: next, t: 0 } : null);
   }
 
   loadLevel(index) {
@@ -92,7 +224,23 @@ export class Game {
     this.shake = 0;
     this.seq = null;
     this.paused = false;
+    this.bossDefeated = false;
+    this.gateOpening = null;
+    this.checkpointHit = this.checkpointFor === index && this.level.checkpoint !== null;
     this.player = this.makePlayer();
+    if (this.checkpointHit) this.placeAtCheckpoint();
+  }
+
+  /** Restart from the halfway flag: stand on the ground there, skip enemies already behind. */
+  placeAtCheckpoint() {
+    const p = this.player;
+    const col = this.level.checkpoint;
+    let row = 0;
+    while (row < GROUND_ROW && !isSolidChar(tileAt(this.level, col, row))) row++;
+    p.x = col * TILE + 2;
+    p.y = row * TILE - p.h;
+    this.camX = Math.max(0, Math.min(p.x - 100, this.level.width * TILE - SCREEN_W));
+    this.pending = this.pending.filter((sp) => sp.x >= this.camX);
   }
 
   makePlayer() {
@@ -107,7 +255,7 @@ export class Game {
       // Extra moves: ground pound (>0 winding up, -1 slamming), wall slide/jump,
       // the Miojo roll, the feather's glide and mid-air flap.
       pound: 0, wallDir: 0, wallGrace: 0, wallLock: 0, wallLockDir: 0,
-      rolling: 0, gliding: false, flaps: 1,
+      rolling: 0, gliding: false, flaps: 1, ridingId: null, springFloat: 0,
     };
   }
 
@@ -122,8 +270,17 @@ export class Game {
     if (this.shake > 0 && !this.paused) this.shake--;
 
     switch (this.state) {
-      case 'title':
-        if (pressed('start') || pressed('jump')) this.newGame(0);
+      case 'title': {
+        const options = this.titleOptions();
+        if (pressed('down') || pressed('left') || pressed('right')) {
+          this.titleChoice = (this.titleChoice + 1) % options.length;
+          this.sfx('tick');
+        }
+        if (pressed('start') || pressed('jump')) this.chooseTitle(options[this.titleChoice % options.length]);
+        break;
+      }
+      case 'map':
+        this.updateMap(pressed);
         break;
       case 'intro':
         if (--this.stateTimer <= 0) {
@@ -178,9 +335,11 @@ export class Game {
       return;
     }
     this.tickClock();
+    this.updatePlatforms();
     if (this.state === 'play') this.updatePlayer(pressed);
     this.spawnPending();
     this.updateEntities();
+    this.updateGate();
     this.updateEffects();
     this.updateBumps();
     this.updateCamera();
@@ -221,8 +380,10 @@ export class Game {
     }
 
     const dir = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
+    const ice = p.onGround && this.onIce(p);
     const max = inp.run ? PHYS.runMax : PHYS.walkMax;
-    const accel = inp.run ? PHYS.runAccel : PHYS.walkAccel;
+    const accel = (inp.run ? PHYS.runAccel : PHYS.walkAccel) * (ice ? PHYS.iceAccel : 1);
+    const friction = PHYS.friction * (ice ? PHYS.iceFriction : 1);
     p.skid = false;
     if (p.rolling) {
       p.vx = p.facing * PHYS.rollSpeed;
@@ -231,15 +392,15 @@ export class Game {
     } else if (dir !== 0 && !(p.crouch && p.onGround) && !(p.wallLock > 0 && dir === p.wallLockDir)) {
       if (p.onGround) p.facing = dir;
       if (p.vx * dir < 0) {
-        p.vx += dir * (p.onGround ? PHYS.skidDecel : PHYS.airTurn);
+        p.vx += dir * (p.onGround ? PHYS.skidDecel * (ice ? PHYS.iceSkid : 1) : PHYS.airTurn);
         p.skid = p.onGround;
       } else if (Math.abs(p.vx) < max) {
         p.vx = dir * Math.min(Math.abs(p.vx) + accel, max);
       } else if (p.onGround) {
-        p.vx = dir * Math.max(Math.abs(p.vx) - PHYS.friction, max);
+        p.vx = dir * Math.max(Math.abs(p.vx) - friction, max);
       }
     } else if (p.onGround) {
-      p.vx = approach(p.vx, 0, PHYS.friction);
+      p.vx = approach(p.vx, 0, friction);
     }
 
     if (pressed('jump') && !p.pound) {
@@ -276,7 +437,9 @@ export class Game {
     } else if (p.pound < 0) {
       p.vy = PHYS.poundSpeed;
     } else {
-      const gravity = p.vy < 0 && inp.jump ? PHYS.gravityHold : PHYS.gravity;
+      // A trampoline launch floats for a moment even if jump isn't held.
+      if (p.springFloat > 0) p.springFloat--;
+      const gravity = p.vy < 0 && (inp.jump || p.springFloat > 0) ? PHYS.gravityHold : PHYS.gravity;
       p.vy = Math.min(p.vy + gravity, PHYS.maxFall);
       if (p.wallGrace === PHYS.wallGraceFrames && p.vy > PHYS.wallSlide) p.vy = PHYS.wallSlide;
       if (p.size === 'pombo' && inp.jump && p.vy > PHYS.glideFall) {
@@ -294,10 +457,11 @@ export class Game {
       if (p.rolling && !this.rollThrough(res.wall)) this.endRoll();
       p.vx = 0;
     }
-    p.onGround = res.landed;
+    const landed = res.landed || this.landOnPlatforms(p);
+    p.onGround = landed;
     if (res.ceiling.length) this.bumpFromBelow(res.ceiling);
 
-    if (res.landed) {
+    if (landed) {
       p.flaps = 1;
       p.wallGrace = 0;
       p.wallDir = 0;
@@ -309,7 +473,7 @@ export class Game {
       p.wallDir = 0;
     }
 
-    if (this.areaName === 'bonus' && inp.right && res.wall === 1 && p.onGround && this.atSideExit()) {
+    if (this.areaName === 'bonus' && inp.right && res.wall === 1 && res.landed && this.atSideExit()) {
       this.beginPipe('right');
       return;
     }
@@ -330,13 +494,100 @@ export class Game {
       this.killPlayer({ fell: true });
       return;
     }
-    const { flagX, axe } = this.level;
+    const { flagX, axe, checkpoint } = this.level;
+    if (checkpoint !== null && !this.checkpointHit && this.areaName === 'main' && p.x > checkpoint * TILE) {
+      this.checkpointHit = true;
+      this.checkpointFor = this.levelIndex;
+      this.sfx('checkpoint');
+    }
     if (flagX !== null && p.x + p.w >= flagX * TILE + 6) {
       this.beginFlag();
       return;
     }
-    // Triggered by crossing, like the flag, so a running jump can't sail over the cup.
-    if (axe && p.x + p.w >= axe.x) this.beginBridge();
+    // Triggered by crossing, like the flag, so a running jump can't sail over the cup —
+    // but the cup is only yours once Mbappé Ditador is beaten.
+    if (axe && p.x + p.w >= axe.x && this.bossBeaten()) this.beginBridge();
+  }
+
+  bossBeaten() {
+    return !this.level.hasBoss || this.bossDefeated;
+  }
+
+  onIce(p) {
+    const row = Math.floor((p.y + p.h) / TILE);
+    return tileAt(this.level, Math.floor(p.x / TILE), row) === 'I' || tileAt(this.level, Math.floor((p.x + p.w - 1) / TILE), row) === 'I';
+  }
+
+  // ───────────────────────────── lifts & springboards ─────────────────────────────
+
+  /** Moves lifts along their back-and-forth path and carries whoever stands on them. */
+  updatePlatforms() {
+    const p = this.player;
+    for (const e of this.entities) {
+      if (e.type === 'spring' && e.squash > 0) e.squash--;
+      if (e.type !== 'lift') continue;
+      e.t++;
+      const k = (1 - Math.cos(e.t * e.omega)) / 2;
+      const nx = e.x0 + e.dx * k;
+      const ny = e.y0 + e.dy * k;
+      e.mx = nx - e.x;
+      e.my = ny - e.y;
+      e.x = nx;
+      e.y = ny;
+      if (p.ridingId === e.id && !p.dead && p.vy >= 0) {
+        p.x += e.mx;
+        p.y = e.y - p.h;
+      }
+    }
+  }
+
+  /** Lifts are one-way platforms; springboards launch him. Returns true if he's now standing on a lift. */
+  landOnPlatforms(p) {
+    p.ridingId = null;
+    if (p.vy < 0) return false;
+    const bottom = p.y + p.h;
+    for (const e of this.entities) {
+      if (e.type !== 'lift' && e.type !== 'spring') continue;
+      if (p.x + p.w <= e.x || p.x >= e.x + e.w) continue;
+      const top = e.type === 'spring' ? e.y + 4 : e.y;
+      if (p.prevBottom > top + 4 || bottom < top) continue;
+      if (e.type === 'spring') {
+        p.y = top - p.h;
+        p.vy = -(PHYS.springLaunch + (this.input.jump ? PHYS.springHeldBonus : 0));
+        p.springFloat = PHYS.springFloat;
+        p.pound = 0;
+        e.squash = 10;
+        this.sfx('spring');
+        return false;
+      }
+      p.y = top - p.h;
+      p.vy = 0;
+      p.ridingId = e.id;
+      return true;
+    }
+    return false;
+  }
+
+  // ───────────────────────────── the gate in front of the cup ─────────────────────────────
+
+  openGate() {
+    const { gate } = this.level;
+    if (gate) this.gateOpening = { row: gate.y1, t: 0 };
+  }
+
+  /** Bars lift away one at a time, bottom first. */
+  updateGate() {
+    const g = this.gateOpening;
+    if (!g) return;
+    const { gate } = this.level;
+    if (++g.t % 5 !== 0) return;
+    if (g.row < gate.y0) {
+      this.gateOpening = null;
+      return;
+    }
+    this.level.tiles[g.row][gate.x] = ' ';
+    g.row--;
+    this.sfx('bump');
   }
 
   setHeight(h) {
@@ -496,8 +747,7 @@ export class Game {
     if (--this.stateTimer > 0) return;
     this.lives--;
     if (this.lives > 0) {
-      this.loadLevel(this.levelIndex);
-      this.setState('intro', 150);
+      this.enterMap(this.levelIndex);
     } else {
       this.setState('gameover', 300);
       this.sfx('gameover');
@@ -644,7 +894,36 @@ export class Game {
   }
 
   createEntity(spec) {
+    const e = this.buildEntity(spec);
+    e.id = this.nextId++;
+    return e;
+  }
+
+  buildEntity(spec) {
     switch (spec.type) {
+      case 'matryoshka':
+        return { type: 'matryoshka', size: 'big', x: spec.x + 1, y: spec.bottom - 19, w: 14, h: 19, vx: -0.5, vy: 0, state: 'walk', anim: 0 };
+      case 'studs':
+        return { type: 'studs', x: spec.x + 1, y: spec.bottom - 10, w: 14, h: 10, vx: -0.5, vy: 0, state: 'walk', anim: 0 };
+      case 'drone':
+        return { type: 'drone', x: spec.x, x0: spec.x, y: spec.bottom - 12, baseY: spec.bottom - 12, w: 14, h: 12, vx: -0.45, vy: 0, t: 0, state: 'fly', anim: 0 };
+      case 'falcon':
+        return { type: 'falcon', x: spec.x, y: spec.bottom - 10, cruiseY: spec.bottom - 10, w: 15, h: 10, vx: -0.9, vy: 0, mode: 'cruise', state: 'fly', anim: 0 };
+      case 'keeper':
+        return { type: 'keeper', x: spec.x + 1, y: spec.top, top: spec.top, w: 14, h: 20, vx: 0, vy: 0, phase: 'hidden', t: 60, state: 'guard', anim: 0 };
+      case 'cannon':
+        return { type: 'cannon', x: spec.x, y: spec.y, w: TILE, h: TILE, timer: 60 };
+      case 'lift': {
+        const span = Math.max(Math.abs(spec.dx), Math.abs(spec.dy), 1);
+        return {
+          type: 'lift', x: spec.x, y: spec.y, x0: spec.x, y0: spec.y, w: spec.w, h: 8,
+          dx: spec.dx, dy: spec.dy, omega: (2 * spec.speed) / span, t: 0, mx: 0, my: 0,
+        };
+      }
+      case 'spring':
+        return { type: 'spring', x: spec.x, y: spec.y, w: TILE, h: TILE, squash: 0 };
+      case 'bubble':
+        return { type: 'bubble', x: spec.x + 2, y: spec.lavaTop, lavaTop: spec.lavaTop, w: 12, h: 12, vy: 0, timer: 30 + Math.floor(this.random() * 90) };
       case 'defender':
         return { type: 'defender', x: spec.x + 1, y: spec.bottom - 14, w: 14, h: 14, vx: -0.5, vy: 0, state: 'walk', anim: 0 };
       case 'referee':
@@ -673,7 +952,21 @@ export class Game {
       switch (e.type) {
         case 'defender':
         case 'referee':
+        case 'matryoshka':
+        case 'studs':
           this.updateEnemy(e);
+          break;
+        case 'drone':
+        case 'falcon':
+        case 'shot':
+        case 'keeper':
+          this.updateSpecialEnemy(e);
+          break;
+        case 'cannon':
+          this.updateCannon(e);
+          break;
+        case 'bubble':
+          this.updateBubble(e);
           break;
         case 'football':
         case 'jersey':
@@ -713,6 +1006,7 @@ export class Game {
   isOffstage(e) {
     if (e.y > SCREEN_H + 32) return true;
     if (e.type === 'boss' || e.type === 'firebar') return false;
+    if (e.type === 'shot' && e.x > this.camX + SCREEN_W + 64) return true;
     return e.x + e.w < this.camX - 64;
   }
 
@@ -791,7 +1085,8 @@ export class Game {
     }
     if (!overlaps(p, e)) return;
     if (ENEMIES.has(e.type)) this.touchEnemy(e);
-    else if (e.type === 'bossfire' || (e.type === 'boss' && e.state === 'alive')) this.hurtPlayer();
+    else if (e.type === 'boss') this.touchBoss(e);
+    else if (e.type === 'bossfire' || (e.type === 'bubble' && e.y < e.lavaTop)) this.hurtPlayer();
   }
 
   firebarHits(bar, p) {
@@ -871,32 +1166,166 @@ export class Game {
       return;
     }
 
-    if (!stomping) {
+    const info = ENEMY_INFO[e.type];
+    if (!stomping || info.spiky) {
       this.hurtPlayer();
       return;
-    }
-    if (e.type === 'defender') {
-      e.state = 'flat';
-      e.timer = 30;
-      e.vx = 0;
-    } else {
-      e.state = 'shell';
-      const bottom = e.y + e.h;
-      e.h = 14;
-      e.y = bottom - 14;
-      e.vx = 0;
-      e.idle = 0;
-      e.kickGrace = 8;
     }
     p.y = e.y - p.h;
     this.bounce();
     this.addScore(100, e.x, e.y);
     this.sfx('stomp');
+    switch (info.stomp) {
+      case 'shell': {
+        e.state = 'shell';
+        const bottom = e.y + e.h;
+        e.h = 14;
+        e.y = bottom - 14;
+        e.vx = 0;
+        e.idle = 0;
+        e.kickGrace = 8;
+        break;
+      }
+      case 'split':
+        if (e.size === 'big') {
+          this.splitDoll(e);
+          break;
+        }
+        e.state = 'flat';
+        e.timer = 30;
+        e.vx = 0;
+        break;
+      case 'fall':
+        e.state = 'flip';
+        e.vx = 0;
+        e.vy = 0;
+        break;
+      default:
+        e.state = 'flat';
+        e.timer = 30;
+        e.vx = 0;
+    }
+  }
+
+  /** The big matryoshka opens up and two little ones hop out in opposite directions. */
+  splitDoll(e) {
+    e.remove = true;
+    const bottom = e.y + e.h;
+    for (const dir of [-1, 1]) {
+      this.entities.push({
+        id: this.nextId++, type: 'matryoshka', size: 'small', x: e.x + 1 + dir * 4, y: bottom - 12, w: 12, h: 12,
+        vx: 0.7 * dir, vy: -2.5, state: 'walk', anim: 0,
+      });
+    }
+  }
+
+  /** Drones bob along a beat, falcons dive, cannon shots fly straight, keepers guard their pipe. */
+  updateSpecialEnemy(e) {
+    e.anim++;
+    if (e.state === 'flip') {
+      e.vy = Math.min(e.vy + 0.3, 5);
+      e.y += e.vy;
+      return;
+    }
+    const p = this.player;
+    switch (e.type) {
+      case 'drone':
+        e.t++;
+        e.x += e.vx;
+        if (e.x < e.x0 - 48 || e.x > e.x0 + 48) e.vx = -e.vx;
+        e.y = e.baseY + Math.sin(e.t / 18) * 10;
+        break;
+      case 'shot':
+        e.x += e.vx;
+        break;
+      case 'falcon': {
+        const dx = p.x + p.w / 2 - (e.x + e.w / 2);
+        if (e.mode === 'cruise') {
+          e.x += e.vx;
+          const ahead = Math.sign(dx) === Math.sign(e.vx) || Math.abs(dx) < 8;
+          if (ahead && Math.abs(dx) < 56 && p.y > e.y + 16 && this.onScreen(e)) {
+            e.mode = 'dive';
+            e.vx = Math.sign(dx || e.vx) * 1.5;
+            this.sfx('screech');
+          }
+        } else if (e.mode === 'dive') {
+          e.x += e.vx;
+          e.y += 2.4;
+          if (e.y >= p.y - 2 || e.y > (GROUND_ROW - 2) * TILE) e.mode = 'climb';
+        } else {
+          e.x += e.vx * 0.6;
+          e.y -= 1.4;
+          if (e.y <= e.cruiseY) {
+            e.y = e.cruiseY;
+            e.mode = 'cruise';
+          }
+        }
+        break;
+      }
+      case 'keeper': {
+        // Like the original's pipe plants: he won't come up while Neymario is right next to the pipe.
+        const near = Math.abs(p.x + p.w / 2 - (e.x + e.w / 2)) < 28;
+        if (e.phase === 'hidden') {
+          if (--e.t <= 0) {
+            if (near) e.t = 20;
+            else e.phase = 'rise';
+          }
+        } else if (e.phase === 'rise') {
+          e.y -= 1;
+          if (e.y <= e.top - e.h) {
+            e.phase = 'out';
+            e.t = 60;
+          }
+        } else if (e.phase === 'out') {
+          if (--e.t <= 0) e.phase = 'sink';
+        } else {
+          e.y += 1;
+          if (e.y >= e.top) {
+            e.phase = 'hidden';
+            e.t = 70;
+          }
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  /** Ball launchers fire at Neymario, but not point-blank, like the original's cannons. */
+  updateCannon(e) {
+    const p = this.player;
+    const dx = p.x + p.w / 2 - (e.x + e.w / 2);
+    if (Math.abs(dx) < 40 || e.x > this.camX + SCREEN_W + 16 || e.x + e.w < this.camX - 16) return;
+    if (--e.timer > 0) return;
+    const dir = Math.sign(dx);
+    this.entities.push({
+      id: this.nextId++, type: 'shot', x: dir < 0 ? e.x - 12 : e.x + e.w, y: e.y + 2, w: 12, h: 12,
+      vx: 1.7 * dir, vy: 0, state: 'fly', anim: 0,
+    });
+    e.timer = 150 + Math.floor(this.random() * 70);
+    this.sfx('cannon');
+  }
+
+  /** Lava bubbles leap out of the lava and fall back in. */
+  updateBubble(e) {
+    if (e.y >= e.lavaTop && e.vy >= 0) {
+      e.y = e.lavaTop;
+      e.vy = 0;
+      if (--e.timer <= 0) {
+        e.vy = -6.2;
+        e.timer = 70 + Math.floor(this.random() * 80);
+      }
+      return;
+    }
+    e.vy = Math.min(e.vy + 0.2, 6);
+    e.y += e.vy;
   }
 
   /** Walkers turn around when they bump into each other; a sliding VAR flattens everyone. */
   resolveEnemyPairs() {
     const live = this.entities.filter((e) => ENEMIES.has(e.type) && !e.remove && e.state !== 'flip' && e.state !== 'flat');
+    const walker = (e) => ENEMY_INFO[e.type].walker;
     for (let i = 0; i < live.length; i++) {
       for (let j = i + 1; j < live.length; j++) {
         const a = live[i];
@@ -907,7 +1336,7 @@ export class Game {
         if (aSliding || bSliding) {
           if (aSliding) this.flipKill(b, 500);
           if (bSliding) this.flipKill(a, 500);
-        } else {
+        } else if (walker(a) && walker(b)) {
           const [l, r] = a.x < b.x ? [a, b] : [b, a];
           l.vx = -Math.abs(l.vx);
           r.vx = Math.abs(r.vx);
@@ -933,7 +1362,7 @@ export class Game {
         return;
       }
       if (o.type === 'boss' && o.state === 'alive') {
-        this.hitBoss(o);
+        this.hitBoss(o, 1, 20);
         this.popFireball(e);
         return;
       }
@@ -956,13 +1385,16 @@ export class Game {
     }
     const p = this.player;
     e.facing = p.x + p.w / 2 < e.x + e.w / 2 ? -1 : 1;
+    // Down to his last two hits he gets angry: faster, jumpier, more fire.
+    e.angry = e.hp <= 2;
+    const pace = e.angry ? 1.0 : 0.6;
     if (--e.moveTimer <= 0) {
-      e.vx = this.random() < 0.5 ? -0.6 : 0.6;
+      e.vx = this.random() < 0.5 ? -pace : pace;
       e.moveTimer = 40 + Math.floor(this.random() * 80);
     }
     if (e.x < e.home - 48) e.vx = Math.abs(e.vx);
     if (e.x > e.home + 16) e.vx = -Math.abs(e.vx);
-    if (e.onGround && this.random() < 0.012) e.vy = -3.5;
+    if (e.onGround && this.random() < (e.angry ? 0.025 : 0.012)) e.vy = -3.5;
     e.vy = Math.min(e.vy + 0.15, 4);
     const res = moveBody(e, this.level);
     e.onGround = res.landed;
@@ -979,22 +1411,58 @@ export class Game {
         e.mouth = 24;
         this.sfx('bossfire');
       }
-      e.fireTimer = 110 + Math.floor(this.random() * 90);
+      e.fireTimer = (e.angry ? 70 : 110) + Math.floor(this.random() * (e.angry ? 50 : 90));
     }
   }
 
-  hitBoss(boss) {
-    boss.hp--;
-    boss.hurt = 20;
+  /** Damages Mbappé unless he's still reeling from the last hit. Returns true if it landed. */
+  hitBoss(boss, damage = 1, stun = 30) {
+    if (boss.state !== 'alive' || boss.hurt > 0) return false;
+    boss.hp = Math.max(0, boss.hp - damage);
+    boss.hurt = stun;
     if (boss.hp > 0) {
-      this.sfx('bump');
-      return;
+      this.sfx('bosshit');
+      return true;
     }
+    // Beaten: he tumbles through the bridge into the lava and the gate to the cup opens.
     boss.state = 'dead';
-    boss.vy = -3;
+    boss.vy = -4;
     boss.vx = 0;
+    this.bossDefeated = true;
     this.addScore(5000, boss.x, boss.y);
     this.sfx('bossdie');
+    this.openGate();
+    return true;
+  }
+
+  /** Stomp him, roll into him, ground-pound him: every move works on the dictator. */
+  touchBoss(boss) {
+    const p = this.player;
+    if (boss.state !== 'alive') return;
+    const stomping = p.lastVy > 0 && p.prevBottom <= boss.y + 10;
+    if (p.pound < 0 && stomping) {
+      this.hitBoss(boss, 2, 50);
+      p.pound = 0;
+      this.bounce();
+      return;
+    }
+    if (stomping) {
+      this.hitBoss(boss, 1, 50);
+      p.y = boss.y - p.h;
+      p.vy = -PHYS.stompBounceHeld;
+      return;
+    }
+    if (p.rolling > 0 || p.star > 0) {
+      this.hitBoss(boss, 1, 50);
+      if (p.rolling) this.endRoll();
+      p.vx = boss.x + boss.w / 2 < p.x + p.w / 2 ? 2.5 : -2.5;
+      p.vy = -3;
+      p.invuln = Math.max(p.invuln, 40);
+      return;
+    }
+    // While he's reeling from a hit he can't hurt you.
+    if (boss.hurt > 0) return;
+    this.hurtPlayer();
   }
 
   // ───────────────────────────── effects & camera ─────────────────────────────
@@ -1181,7 +1649,7 @@ export class Game {
         if (--s.t <= 0) this.beginCelebration(s);
         break;
       default:
-        this.updateCelebration(s, () => this.nextLevel());
+        this.updateCelebration(s, () => this.levelCleared());
         break;
     }
   }
@@ -1297,15 +1765,6 @@ export class Game {
     return false;
   }
 
-  nextLevel() {
-    if (this.levelIndex + 1 < this.levels.length) {
-      this.loadLevel(this.levelIndex + 1);
-      this.setState('intro', 150);
-    } else {
-      this.win();
-    }
-  }
-
   win() {
     this.setState('victory', 120);
     this.sfx('victory');
@@ -1367,7 +1826,7 @@ export class Game {
         break;
       }
       default:
-        this.updateCelebration(s, () => this.win());
+        this.updateCelebration(s, () => this.levelCleared());
         break;
     }
   }

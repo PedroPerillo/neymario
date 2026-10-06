@@ -13,9 +13,14 @@ const jump = (g, frames = 30) => {
 };
 const find = (g, type) => g.entities.find((e) => e.type === type);
 
-test('title → Enter → match intro → play', () => {
+test('title → Enter → world map → Enter on a stadium → match intro → play', () => {
   const g = new Game();
   assert.equal(g.state, 'title');
+  assert.deepEqual(g.titleOptions(), ['START']);
+  g.update({ start: true });
+  assert.equal(g.state, 'map');
+  assert.equal(g.map.node, 0);
+  g.update({});
   g.update({ start: true });
   assert.equal(g.state, 'intro');
   assert.equal(g.lives, 3);
@@ -157,13 +162,14 @@ test('stomping a defender flattens him and bounces Neymario', () => {
   assert.equal(g.score, 100);
 });
 
-test('walking into a defender while small costs a life and restarts the match', () => {
+test('walking into a defender while small costs a life and sends Neymario back to the map', () => {
   const g = playing([withEnemy('defender', 4)]);
   run(g, { right: true }, 120);
   assert.equal(g.state, 'dying');
   run(g, {}, 180);
   assert.equal(g.lives, 2);
-  assert.equal(g.state, 'intro');
+  assert.equal(g.state, 'map');
+  assert.equal(g.map.node, 0);
   assert.equal(g.player.size, 'small');
 });
 
@@ -246,8 +252,9 @@ test('touching the corner flag ends the match, tallies time and starts the next 
   const before = g.score;
   let guard = 0;
   while (g.state === 'flag' && guard++ < 2000) g.update({});
-  assert.equal(g.state, 'intro');
-  assert.equal(g.levelIndex, 1);
+  assert.equal(g.state, 'map');
+  assert.equal(g.save.unlocked, 1, 'next stadium opened');
+  assert.ok(g.map.reveal, 'the path to it draws itself in');
   assert.ok(g.score > before, 'leftover time became points');
 });
 
@@ -269,10 +276,21 @@ const castle = testLevel((L) => {
   L.ground(26, 39).trophy(26);
 }, { theme: 'castle' });
 
-test('grabbing the cup drops Mbappé Ditador into the lava and wins the Hexa', () => {
+const beatBoss = (g) => {
+  const boss = find(g, 'boss');
+  for (let i = 0; i < 5; i++) {
+    boss.hurt = 0;
+    g.hitBoss(boss);
+  }
+  return boss;
+};
+
+test('grabbing the cup after beating Mbappé Ditador wins the Hexa', () => {
   const g = playing([castle]);
   run(g, {}, 5);
   assert.ok(find(g, 'boss'), 'boss spawned');
+  beatBoss(g);
+  run(g, {}, 60);
   g.player.x = 26 * TILE - g.player.w + 2;
   g.player.star = 9999; // keep the boss's fire out of this test
   g.update({});
@@ -283,14 +301,19 @@ test('grabbing the cup drops Mbappé Ditador into the lava and wins the Hexa', (
   assert.equal(g.level.tiles[GROUND_ROW][15], ' ', 'bridge collapsed');
   assert.ok(!find(g, 'boss'), 'boss fell');
   assert.equal(g.highScore, g.score);
+  assert.equal(g.save.complete, true);
 });
 
-test('five Blaze fireballs defeat Mbappé Ditador', () => {
+test('five hits defeat Mbappé Ditador; each hit leaves him briefly invulnerable', () => {
   const g = playing([castle]);
   run(g, {}, 5);
   const boss = find(g, 'boss');
-  for (let i = 0; i < 5; i++) g.hitBoss(boss);
+  assert.equal(g.hitBoss(boss), true);
+  assert.equal(g.hitBoss(boss), false, 'still reeling from the first hit');
+  assert.equal(boss.hp, 4);
+  beatBoss(g);
   assert.equal(boss.state, 'dead');
+  assert.equal(g.bossDefeated, true);
   assert.equal(g.score, 5000);
 });
 
@@ -327,6 +350,7 @@ test('pause freezes the match', () => {
 test('a running jump cannot sail over the cup: crossing it collapses the bridge', () => {
   const g = playing([castle]);
   run(g, {}, 5);
+  beatBoss(g);
   g.player.x = 22 * TILE;
   g.player.y = 7 * TILE; // well above the 2-tile-tall cup
   g.player.vx = 2.6;
@@ -348,6 +372,7 @@ test('a running jump cannot sail over the cup: crossing it collapses the bridge'
 test('crossing the cup with only the leading edge still lands on solid ground', () => {
   const g = playing([castle]);
   run(g, {}, 5);
+  beatBoss(g);
   g.player.star = 9999;
   g.player.y = 9 * TILE;
   g.player.vx = 0;
@@ -606,7 +631,7 @@ test('after the corner flag, Neymario shoots into the goal: GOOOOL, confetti and
   for (const ph of ['slide', 'walk', 'kick', 'fly', 'goal', 'tally']) assert.ok(phases.has(ph), `went through ${ph}`);
   const goalX = 15 * TILE;
   assert.ok(scoredAt.x > goalX + 10 && scoredAt.x < goalX + 76, 'ball ended up inside the net');
-  assert.equal(g.state, 'intro');
+  assert.equal(g.state, 'map');
 });
 
 test('the screen shake from a pound wears off even if a pipe trip starts right away', () => {
@@ -632,4 +657,264 @@ test('going through a pipe keeps the trophy music playing while invincible', () 
   let guard = 0;
   while (g.areaName === 'main' && guard++ < 200) g.update({ down: true });
   assert.equal(sounds.filter((s) => s.startsWith('music:')).at(-1), 'music:star');
+});
+
+// ── world map & progress ──
+
+test('the map only lets Neymario walk to stadiums he has unlocked', () => {
+  const g = new Game({ save: { unlocked: 1, cleared: ['2014-1'] } });
+  assert.deepEqual(g.titleOptions(), ['CONTINUE', 'NEW GAME']);
+  g.update({ start: true });
+  assert.equal(g.state, 'map');
+  assert.equal(g.map.node, 1, 'continue starts at the furthest stadium');
+  run(g, { right: true }, 200);
+  assert.equal(g.map.node, 1, 'stadium 3 is still locked');
+  run(g, { left: true }, 200);
+  assert.equal(g.map.node, 0);
+  g.update({});
+  g.update({ jump: true });
+  assert.equal(g.state, 'intro');
+  assert.equal(g.levelIndex, 0);
+});
+
+test('NEW GAME wipes saved progress; winning a match saves it', () => {
+  const saves = [];
+  const g = new Game({ levels: [goalLevel, flatGround()], save: { unlocked: 1, cleared: ['x'] }, onSave: (s) => saves.push(s) });
+  g.update({ down: true });
+  assert.equal(g.titleChoice, 1);
+  g.update({ start: true });
+  assert.equal(g.save.unlocked, 0);
+  assert.deepEqual(saves.at(-1), { unlocked: 0, cleared: [] });
+  g.update({});
+  g.update({ start: true });
+  run(g, {}, 150);
+  g.player.x = 8 * TILE;
+  g.update({ right: true });
+  run(g, { right: true, jump: true }, 30);
+  run(g, { right: true }, 60);
+  let guard = 0;
+  while (g.state === 'flag' && guard++ < 2000) g.update({});
+  assert.equal(saves.at(-1).unlocked, 1);
+  assert.deepEqual(saves.at(-1).cleared, ['test']);
+});
+
+test('after losing a life past the halfway flag, the match restarts there', () => {
+  const lvl = testLevel((L) => L.ground(0, 39).checkpointAt(20).enemy('defender', 30));
+  const g = playing([lvl]);
+  g.player.x = 21 * TILE;
+  g.update({});
+  assert.equal(g.checkpointHit, true);
+  g.killPlayer({ fell: true });
+  run(g, {}, 180);
+  assert.equal(g.state, 'map');
+  g.update({});
+  g.update({ start: true });
+  assert.ok(g.player.x >= 20 * TILE, 'starts at the checkpoint');
+  assert.equal(g.player.y + g.player.h, GROUND_Y);
+});
+
+// ── new opponents ──
+
+test('a goalkeeper hides in his pipe while Neymario is next to it, and cannot be stomped', () => {
+  const lvl = testLevel((L) => L.ground(0, 39).keeperPipe(10, 2));
+  const g = playing([lvl]);
+  g.player.x = 10 * TILE + 4;
+  g.player.y = 11 * TILE - g.player.h;
+  run(g, {}, 200);
+  const k = find(g, 'keeper');
+  assert.equal(k.phase, 'hidden', 'stays down while Neymario stands on the pipe');
+  g.player.x = 3 * TILE;
+  g.player.y = GROUND_Y - g.player.h;
+  let cameUp = false;
+  for (let i = 0; i < 120; i++) {
+    g.update({});
+    cameUp ||= k.phase !== 'hidden';
+  }
+  assert.ok(cameUp, 'comes up once he steps away');
+  // Land on him while he's up: it hurts.
+  while (k.phase !== 'out') g.update({});
+  g.player.x = k.x;
+  g.player.y = k.y - g.player.h + 1;
+  g.player.vy = 2;
+  g.update({});
+  assert.equal(g.state, 'dying');
+});
+
+test('stomping a big matryoshka splits it into two small ones', () => {
+  const g = playing([withEnemy('matryoshka')]);
+  settle(g);
+  const doll = find(g, 'matryoshka');
+  g.player.x = doll.x;
+  g.player.y = doll.y - g.player.h + 1;
+  g.player.vy = 2;
+  g.update({});
+  const smalls = g.entities.filter((e) => e.type === 'matryoshka' && e.size === 'small');
+  assert.equal(smalls.length, 2);
+  assert.ok(smalls[0].vx * smalls[1].vx < 0, 'they run apart');
+});
+
+test('studs-up boots hurt when stomped, but fall to a fireball', () => {
+  const g = playing([withEnemy('studs')]);
+  settle(g);
+  const boot = find(g, 'studs');
+  g.player.x = boot.x;
+  g.player.y = boot.y - g.player.h + 1;
+  g.player.vy = 2;
+  g.update({});
+  assert.equal(g.state, 'dying');
+
+  const f = playing([withEnemy('studs')]);
+  settle(f);
+  const b = find(f, 'studs');
+  f.entities.push({ id: 999, type: 'fireball', x: b.x - 4, y: b.y + 1, w: 8, h: 8, vx: 4, vy: 0, anim: 0 });
+  f.update({});
+  assert.equal(b.state, 'flip');
+});
+
+test('a ball cannon fires at Neymario, but not point-blank', () => {
+  const lvl = testLevel((L) => L.ground(0, 39).cannon(12));
+  const g = playing([lvl]);
+  run(g, {}, 300);
+  const shot = find(g, 'shot');
+  assert.ok(shot, 'fired');
+  assert.ok(shot.vx < 0, 'toward Neymario on the left');
+  const close = playing([lvl]);
+  close.player.x = 12 * TILE - 20;
+  close.camX = 0;
+  run(close, {}, 300);
+  assert.ok(!find(close, 'shot'), 'holds fire when he is right next to it');
+});
+
+test('a falcon dives at Neymario when he passes beneath it', () => {
+  const lvl = testLevel((L) => L.ground(0, 39).enemy('falcon', 10, 3));
+  const g = playing([lvl]);
+  g.player.star = 9999;
+  g.update({});
+  const falcon = find(g, 'falcon');
+  const cruise = falcon.y;
+  g.player.x = falcon.x - 30;
+  let dived = false;
+  for (let i = 0; i < 60; i++) {
+    g.update({});
+    dived ||= falcon.mode === 'dive';
+  }
+  assert.ok(dived);
+  assert.ok(falcon.y > cruise + 20, 'came down');
+});
+
+test('drones can be stomped out of the sky', () => {
+  const g = playing([testLevel((L) => L.ground(0, 39).enemy('drone', 8, 10))]);
+  g.update({});
+  const d = find(g, 'drone');
+  g.player.x = d.x;
+  g.player.y = d.y - g.player.h + 1;
+  g.player.vy = 2;
+  g.update({});
+  assert.equal(d.state, 'flip');
+  assert.ok(g.player.vy < 0);
+});
+
+// ── level mechanics ──
+
+test('a lift carries Neymario along with it', () => {
+  const g = playing([testLevel((L) => L.ground(0, 3).lift(5, 10, 3, { dx: 6 }).ground(30, 39))]);
+  g.update({});
+  const lift = find(g, 'lift');
+  g.player.x = lift.x + 10;
+  g.player.y = lift.y - g.player.h - 2;
+  g.player.vy = 1;
+  run(g, {}, 5);
+  assert.equal(g.player.ridingId, lift.id);
+  const offset = g.player.x - lift.x;
+  run(g, {}, 60);
+  assert.ok(Math.abs(g.player.x - lift.x - offset) < 0.5, 'moved with the lift');
+  assert.equal(g.player.y + g.player.h, lift.y);
+});
+
+test('running over a trampoline pad launches Neymario high', () => {
+  const g = playing([flatGround((L) => L.spring(8))]);
+  settle(g);
+  let top = Infinity;
+  for (let i = 0; i < 180; i++) {
+    g.update({ right: g.player.x < 8 * TILE });
+    top = Math.min(top, g.player.y + g.player.h);
+  }
+  assert.ok(GROUND_Y - top > 7 * TILE, `rose ${GROUND_Y - top}px`);
+});
+
+test('ice is slippery: Neymario slides much further after letting go', () => {
+  const slide = (lvl) => {
+    const g = playing([lvl]);
+    settle(g);
+    run(g, { right: true, run: true }, 60);
+    const x = g.player.x;
+    run(g, {}, 120);
+    return g.player.x - x;
+  };
+  const grass = slide(flatGround());
+  const ice = slide(testLevel((L) => L.ice(0, 39)));
+  assert.ok(ice > grass * 3, `ice ${ice}px vs grass ${grass}px`);
+});
+
+test('lava bubbles leap out and burn', () => {
+  const g = playing([testLevel((L) => L.ground(0, 9).lava(10, 12).bubble(11).ground(13, 39))]);
+  g.player.x = 4 * TILE;
+  let maxRise = 0;
+  for (let i = 0; i < 200; i++) {
+    g.update({});
+    const b = find(g, 'bubble');
+    if (b) maxRise = Math.max(maxRise, b.lavaTop - b.y);
+  }
+  assert.ok(maxRise > 4 * TILE);
+});
+
+// ── Mbappé Ditador must be beaten ──
+
+const gatedCastle = testLevel((L) => {
+  L.ground(0, 9);
+  L.lava(10, 25, 14).bridgeSpan(10, 25);
+  L.boss(15);
+  L.ground(26, 39).gateAt(26, 3, 12).trophy(28).net(33);
+}, { theme: 'castle' });
+
+test('the cup is locked behind a gate until Mbappé Ditador is beaten', () => {
+  const g = playing([gatedCastle]);
+  run(g, {}, 5);
+  g.player.star = 9999;
+  g.player.x = 24 * TILE;
+  run(g, { right: true }, 60);
+  assert.equal(g.state, 'play');
+  assert.ok(g.player.x + g.player.w <= 26 * TILE, 'the gate blocks the way');
+  beatBoss(g);
+  run(g, {}, 80);
+  assert.equal(g.level.tiles[12][26], ' ', 'gate lifted');
+  run(g, { right: true }, 60);
+  assert.equal(g.state, 'bridge');
+});
+
+test('crossing the cup line does nothing while the boss still stands', () => {
+  const g = playing([castle]);
+  run(g, {}, 5);
+  g.player.star = 9999;
+  g.player.x = 26 * TILE - g.player.w + 2;
+  g.update({});
+  assert.equal(g.state, 'play');
+});
+
+test('stomping Mbappé hurts him and bounces Neymario; while he reels he is harmless', () => {
+  const g = playing([castle]);
+  run(g, {}, 5);
+  const boss = find(g, 'boss');
+  boss.vx = 0;
+  g.player.x = boss.x + 8;
+  g.player.y = boss.y - g.player.h + 2;
+  g.player.vy = 2;
+  g.update({});
+  assert.equal(boss.hp, 4);
+  assert.ok(g.player.vy < 0, 'bounced');
+  g.player.x = boss.x - g.player.w + 4;
+  g.player.y = boss.y + boss.h - g.player.h;
+  g.player.vy = 0;
+  g.update({});
+  assert.equal(g.state, 'play', 'touching him while he reels does not hurt');
 });

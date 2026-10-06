@@ -4,6 +4,7 @@ import { createInput } from './input.js';
 import { createAudio } from './audio.js';
 
 const HI_KEY = 'neymario.highscore';
+const SAVE_KEY = 'neymario.save';
 const STEP_MS = 1000 / 60;
 
 const readHighScore = () => {
@@ -14,11 +15,29 @@ const readHighScore = () => {
   }
 };
 
+const readSave = () => {
+  try {
+    return JSON.parse(localStorage.getItem(SAVE_KEY)) ?? null;
+  } catch {
+    return null;
+  }
+};
+
+const writeSave = (save) => {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+  } catch {
+    // Storage can be unavailable (private mode); progress just won't persist.
+  }
+};
+
 const audio = createAudio();
 const game = new Game({
   sfx: (name) => audio.play(name),
   seed: Date.now() >>> 0,
   highScore: readHighScore(),
+  save: readSave(),
+  onSave: writeSave,
 });
 const renderer = createRenderer(document.getElementById('screen'));
 const input = createInput(window, document.getElementById('touch'));

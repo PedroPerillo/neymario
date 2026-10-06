@@ -31,6 +31,14 @@ export const PHYS = {
   rollFrames: 45,
   glideFall: 1.0,
   flapVel: 3.6,
+  // Trampoline pads: launch speed, and how long the launch floats as if jump were held.
+  springLaunch: 6.0,
+  springHeldBonus: 0.5,
+  springFloat: 36,
+  // Ice cuts grip: acceleration, friction and skid are scaled by these.
+  iceAccel: 0.4,
+  iceFriction: 0.12,
+  iceSkid: 0.25,
 };
 
 export const PLAYER_W = 12;
