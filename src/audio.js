@@ -158,6 +158,7 @@ export function createAudio() {
     pause: () => arp(['E5', 'C5', 'E5', 'C5'], 0.06),
     resume: () => arp(['C5', 'E5'], 0.06),
     bossfire: () => noise({ dur: 0.6, vol: 0.3, cutoff: 900 }),
+    twirl: () => [0, 0.06, 0.12].forEach((at, i) => tone({ type: 'triangle', from: 500 + i * 150, to: 900 + i * 150, dur: 0.06, vol: 0.18, at })),
     pipe: () => [0, 0.1, 0.2].forEach((at) => tone({ type: 'square', from: 300, to: 120, dur: 0.08, vol: 0.18, at })),
     spin: () => tone({ type: 'triangle', from: 300, to: 900, dur: 0.18, vol: 0.2 }),
     pound: () => { noise({ dur: 0.18, vol: 0.45, cutoff: 500 }); tone({ type: 'triangle', from: 120, to: 40, dur: 0.2, vol: 0.5 }); },

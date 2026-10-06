@@ -6,7 +6,7 @@ import { moveBody, overlaps, tileAt, isSolidChar } from './physics.js';
 import { MAP_W, NODES, pathBetween, regionAt } from './worldmap.js';
 
 export const NO_INPUT = Object.freeze({
-  left: false, right: false, down: false, jump: false, run: false, start: false, pause: false,
+  left: false, right: false, down: false, jump: false, run: false, spin: false, start: false, pause: false,
 });
 
 // How each opponent behaves: walkers turn at walls and each other; `stomp` is
@@ -287,6 +287,8 @@ export class Game {
       pound: 0, wallDir: 0, wallGrace: 0, wallLock: 0, wallLockDir: 0,
       rolling: 0, gliding: false, flaps: 1, ridingId: null, springFloat: 0,
       jump: 0, takeoffSpeed: 0, runTimer: 0,
+      // Spin jump: `spinning` while twirling through the air; one mid-air twirl per jump.
+      spinning: false, twirl: 0, twirled: false,
     };
   }
 
@@ -439,6 +441,26 @@ export class Game {
         p.vy = -PHYS.flapVel;
         p.flaps--;
         this.sfx('flap');
+      } else if (!p.rolling) {
+        // Jump again in mid-air: the New Super Mario Bros. twirl.
+        this.twirl();
+      }
+    }
+
+    // Spin jump, as in Super Mario World: SPIN on the ground twirls up and spin-lands on enemies;
+    // in mid-air it's a one-off twirl for a little lift and a slower fall.
+    if (pressed('spin') && !p.pound && !p.rolling) {
+      if (p.onGround) {
+        const speed = Math.abs(p.vx);
+        p.jump = PHYS.jumps.findIndex((j) => speed < j.below);
+        p.vy = -(PHYS.jumps[p.jump].vel - PHYS.spinVelDrop);
+        p.takeoffSpeed = speed;
+        p.onGround = false;
+        p.spinning = true;
+        launched = true;
+        this.sfx('twirl');
+      } else {
+        this.twirl();
       }
     }
 
@@ -446,6 +468,7 @@ export class Game {
     if (pressed('down') && !p.onGround && !p.pound && !p.rolling) {
       p.pound = PHYS.poundWindup;
       p.vx = 0;
+      p.spinning = false;
       this.sfx('spin');
     }
     p.gliding = false;
@@ -459,8 +482,13 @@ export class Game {
       if (p.springFloat > 0) p.springFloat--;
       // Like the original, the launch frame moves at full speed before gravity kicks in.
       const j = PHYS.jumps[p.jump];
-      const gravity = p.vy < 0 && (inp.jump || p.springFloat > 0) ? j.hold : j.fall;
+      const holding = inp.jump || (inp.spin && p.spinning) || p.springFloat > 0;
+      const gravity = p.vy < 0 && holding ? j.hold : j.fall;
       if (!launched) p.vy = Math.min(p.vy + gravity, PHYS.maxFall);
+      if (p.twirl > 0) {
+        p.twirl--;
+        if (p.vy > PHYS.twirlFall) p.vy = PHYS.twirlFall;
+      }
       if (p.wallGrace === PHYS.wallGraceFrames && p.vy > PHYS.wallSlide) p.vy = PHYS.wallSlide;
       if (p.size === 'pombo' && inp.jump && p.vy > PHYS.glideFall) {
         p.vy = PHYS.glideFall;
@@ -485,6 +513,11 @@ export class Game {
       p.flaps = 1;
       p.wallGrace = 0;
       p.wallDir = 0;
+      p.twirled = false;
+      p.twirl = 0;
+      // A big spin jump drills through bricks, like in Super Mario World.
+      if (p.spinning && !p.pound && p.size !== 'small' && this.smashBelow({ bumpPrizes: false })) p.onGround = false;
+      else p.spinning = false;
       if (p.pound < 0) this.landPound();
     } else if (res.wall && res.wall === dir && !p.pound && !p.rolling) {
       p.wallDir = res.wall;
@@ -757,20 +790,7 @@ export class Game {
   /** The slam lands: smash plain bricks underneath (when big) and keep going, or stop with a thud. */
   landPound() {
     const p = this.player;
-    const row = Math.round((p.y + p.h) / TILE);
-    const left = Math.floor(p.x / TILE);
-    const right = Math.ceil((p.x + p.w) / TILE) - 1;
-    let smashed = false;
-    for (let tx = left; tx <= right; tx++) {
-      const ch = tileAt(this.level, tx, row);
-      const hasContent = this.level.contents.has(`${tx},${row}`);
-      if (ch === '?' || (ch === 'B' && hasContent)) this.bumpTile(tx, row);
-      else if (ch === 'B' && p.size !== 'small') {
-        this.breakBrick(tx, row);
-        smashed = true;
-      }
-    }
-    if (smashed) {
+    if (this.smashBelow({ bumpPrizes: true })) {
       p.onGround = false;
       return;
     }
@@ -778,6 +798,37 @@ export class Game {
     this.shake = 10;
     this.sfx('pound');
     for (const dx of [-6, p.w + 2]) this.effects.push({ kind: 'puff', x: p.x + dx, y: p.y + p.h - 8, t: 12 });
+  }
+
+  /** Mid-air twirl: once per jump, a little lift and a slower fall. */
+  twirl() {
+    const p = this.player;
+    if (p.twirled || p.onGround || p.pound) return;
+    p.twirled = true;
+    p.spinning = true;
+    p.twirl = PHYS.twirlFrames;
+    p.vy = Math.min(p.vy, -PHYS.twirlLift);
+    this.sfx('twirl');
+  }
+
+  /** Smashes the plain bricks right under Neymario's feet (when big). Returns true if any broke. */
+  smashBelow({ bumpPrizes }) {
+    const p = this.player;
+    const row = Math.round((p.y + p.h) / TILE);
+    const left = Math.floor(p.x / TILE);
+    const right = Math.ceil((p.x + p.w) / TILE) - 1;
+    let smashed = false;
+    for (let tx = left; tx <= right; tx++) {
+      const ch = tileAt(this.level, tx, row);
+      const hasContent = this.level.contents.has(`${tx},${row}`);
+      if (ch === '?' || (ch === 'B' && hasContent)) {
+        if (bumpPrizes) this.bumpTile(tx, row);
+      } else if (ch === 'B' && p.size !== 'small') {
+        this.breakBrick(tx, row);
+        smashed = true;
+      }
+    }
+    return smashed;
   }
 
   breakBrick(tx, ty) {
@@ -1228,6 +1279,19 @@ export class Game {
       return;
     }
     const stomping = p.lastVy > 0 && p.prevBottom <= e.y + 8;
+
+    // Spin-landing knocks most opponents out in a puff, and bounces safely off a goalkeeper's gloves.
+    if (p.spinning && stomping) {
+      p.y = e.y - p.h;
+      p.vy = -PHYS.spinBounce;
+      p.onGround = false;
+      this.sfx('stomp');
+      if (e.type === 'keeper') return;
+      e.remove = true;
+      this.effects.push({ kind: 'puff', x: e.x + e.w / 2 - 4, y: e.y + e.h / 2 - 4, t: 12 });
+      this.addScore(200, e.x, e.y);
+      return;
+    }
 
     if (e.state === 'shell') {
       if (e.kickGrace > 0) return;
@@ -1700,6 +1764,7 @@ export class Game {
     p.facing = 1;
     p.pound = 0;
     p.rolling = 0;
+    p.spinning = false;
     p.crouch = false;
     if (p.size !== 'small' && p.h !== BIG_H) this.setHeight(BIG_H);
     const points = p.y < 4 * TILE ? 5000 : p.y < 6 * TILE ? 2000 : p.y < 8 * TILE ? 800 : p.y < 10 * TILE ? 400 : 100;

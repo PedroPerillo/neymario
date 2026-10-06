@@ -37,6 +37,8 @@ The kit always stays yellow and green; the power shows on the hair and boots.
 - **Crouch** (↓ when big) and **crouch-slide** at speed; you can **crouch-jump** into one-tile gaps
 - **Ground pound**: ↓ in mid-air. Flattens anything below, smashes bricks when big, pops prize blocks
 - **Wall slide & wall jump**: push into a wall while falling, then jump
+- **Twirl**: press jump again in mid-air for a little lift and a slow, spinning fall (once per jump)
+- **Spin jump** (C): a Super Mario World twirling jump; spin-land on enemies to knock them out, even the spiky ones, and drill through bricks when big
 - **Pipes**: ↓ on the right pipe drops into a bonus room; walk into its sideways pipe to come back out further on
 
 ## The world map
@@ -93,7 +95,7 @@ npm start        # http://localhost:5173
 
 No dependencies and no build step. It's plain ES modules served statically.
 
-Controls: ←/→ move · Z/Space/↑ jump (hold for height) · X/Shift run & use power ·
+Controls: ←/→ move · Z/Space/↑ jump (hold for height; again in mid-air to twirl) · C spin jump · X/Shift run & use power ·
 ↓ crouch / enter pipes / ground pound · Enter start & pause · P/Esc pause · M mute.
 On touch devices, on-screen buttons appear.
 

@@ -34,3 +34,10 @@ test('M toggles mute instead of mapping to an action', () => {
   assert.equal(mutes, 1);
   assert.ok(Object.values(input.state()).every((v) => v === false));
 });
+
+test('C is the spin button', () => {
+  const target = new EventTarget();
+  const input = createInput(target);
+  target.dispatchEvent(key('keydown', 'KeyC'));
+  assert.equal(input.state().spin, true);
+});

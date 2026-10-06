@@ -1087,3 +1087,134 @@ test('letting go of run keeps sprint top speed for 10 frames, then eases back to
   run(g, { right: true }, 5);
   assert.ok(g.player.vx < PHYS.runMax, 'slowing down after the timer runs out');
 });
+
+// ── twirl and spin jump ──
+
+const jumpPeak = (g, { twirlAt = null } = {}) => {
+  g.update({});
+  let top = Infinity;
+  for (let i = 0; i < 90; i++) {
+    const again = twirlAt !== null && i === twirlAt;
+    g.update({ jump: i < 20 || again ? !(twirlAt !== null && i === twirlAt - 1) : false });
+    top = Math.min(top, g.player.y + g.player.h);
+  }
+  return GROUND_Y - top;
+};
+
+test('pressing jump again in mid-air twirls: a little lift, once per jump, back after landing', () => {
+  const g = playing([flatGround()]);
+  settle(g);
+  g.update({});
+  run(g, { jump: true }, 25);
+  g.update({});
+  const vy = g.player.vy;
+  g.update({ jump: true });
+  assert.equal(g.player.twirled, true);
+  assert.ok(g.player.vy <= -PHYS.twirlLift + PHYS.jumps[0].fall, 'lifted');
+  assert.ok(vy > g.player.vy);
+  g.update({});
+  const again = g.player.vy;
+  g.update({ jump: true });
+  assert.ok(g.player.vy >= again, 'only one twirl per jump');
+  run(g, {}, 120);
+  assert.ok(g.player.onGround);
+  assert.equal(g.player.twirled, false, 'recharged on landing');
+});
+
+test('a twirled jump peaks no more than about 20px above a plain one, and falls slowly', () => {
+  const plain = playing([flatGround()]);
+  settle(plain);
+  const plainPeak = jumpPeak(plain);
+  const twirled = playing([flatGround()]);
+  settle(twirled);
+  const twirlPeak = jumpPeak(twirled, { twirlAt: 30 });
+  assert.ok(twirlPeak <= plainPeak + 20, `${twirlPeak} vs ${plainPeak}`);
+  const g = playing([flatGround()]);
+  settle(g);
+  g.update({});
+  run(g, { jump: true }, 20);
+  run(g, {}, 20);
+  g.update({ jump: true });
+  run(g, {}, 12);
+  assert.ok(g.player.vy <= PHYS.twirlFall, 'falls gently while twirling');
+});
+
+test('a wall jump and the Pombo flap take priority over the twirl; no twirl in a pound', () => {
+  const w = playing([flatGround((L) => L.column(8, 8))]);
+  settle(w);
+  w.player.x = 8 * TILE - w.player.w - 1;
+  w.update({ right: true });
+  run(w, { right: true, jump: true }, 25);
+  run(w, { right: true }, 20);
+  w.update({ right: true, jump: true });
+  assert.ok(w.player.vx < 0, 'wall jump');
+  assert.equal(w.player.twirled, false);
+
+  const f = playing([flatGround()]);
+  f.setSize('pombo');
+  settle(f);
+  f.update({});
+  run(f, { jump: true }, 15);
+  f.update({});
+  f.update({ jump: true });
+  assert.equal(f.player.flaps, 0, 'first press flaps');
+  assert.equal(f.player.twirled, false);
+  f.update({});
+  f.update({ jump: true });
+  assert.equal(f.player.twirled, true, 'second press twirls');
+
+  const p = playing([flatGround()]);
+  settle(p);
+  p.update({});
+  run(p, { jump: true }, 15);
+  p.update({ down: true });
+  p.update({ jump: true });
+  assert.equal(p.player.twirled, false, 'no twirl while pounding');
+});
+
+test('spin jump: the SPIN button twirls up from the ground and is a little lower than a jump', () => {
+  const g = playing([flatGround()]);
+  settle(g);
+  g.update({ spin: true });
+  assert.equal(g.player.spinning, true);
+  assert.equal(g.player.vy, -(PHYS.jumps[0].vel - PHYS.spinVelDrop));
+});
+
+test('spin-landing knocks out even a studs-up boot, and bounces safely off a keeper', () => {
+  const g = playing([withEnemy('studs')]);
+  settle(g);
+  const boot = find(g, 'studs');
+  g.player.x = boot.x;
+  g.player.y = boot.y - g.player.h + 1;
+  g.player.vy = 2;
+  g.player.spinning = true;
+  g.update({});
+  assert.equal(g.state, 'play');
+  assert.ok(!find(g, 'studs'), 'boot spun away');
+  assert.ok(g.player.vy < 0, 'bounced');
+
+  const k = playing([testLevel((L) => L.ground(0, 39).keeperPipe(10, 2))]);
+  const keeper = () => find(k, 'keeper');
+  k.player.x = 3 * TILE;
+  let guard = 0;
+  while ((!keeper() || keeper().phase !== 'out') && guard++ < 400) k.update({});
+  k.player.x = keeper().x;
+  k.player.y = keeper().y - k.player.h + 1;
+  k.player.vy = 2;
+  k.player.spinning = true;
+  k.update({});
+  assert.equal(k.state, 'play');
+  assert.ok(keeper(), 'keeper survives');
+  assert.ok(k.player.vy < 0, 'bounced off his gloves');
+});
+
+test('a big spin jump drills through bricks underneath', () => {
+  const g = playing([flatGround((L) => L.place(1, 12, 'BBBB'))]);
+  g.setSize('big');
+  g.player.y = 12 * TILE - g.player.h;
+  settle(g);
+  g.update({ spin: true });
+  run(g, {}, 80);
+  assert.equal(g.level.tiles[12][2], ' ');
+  assert.equal(g.player.y + g.player.h, GROUND_Y);
+});

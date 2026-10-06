@@ -14,7 +14,8 @@
     <main class="wrap">
       <canvas id="screen" aria-label="Super Neymario game screen"></canvas>
       <p class="help">
-        ←/→ move · Z/Space jump (off walls too) · X/Shift run &amp; shoot · ↓ crouch, enter pipes, ground pound in mid-air ·
+        ←/→ move · Z/Space jump (again in mid-air: twirl; off walls too) · C spin jump · X/Shift run &amp; shoot ·
+        ↓ crouch, enter pipes, ground pound in mid-air ·
         Enter start/pause · M mute
       </p>
       <div id="touch" class="touch" aria-hidden="true">
@@ -28,6 +29,7 @@
           <button data-action="mute">♪</button>
         </div>
         <div class="pad">
+          <button data-action="spin" class="round">S</button>
           <button data-action="run" class="round">B</button>
           <button data-action="jump" class="round">A</button>
         </div>

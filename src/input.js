@@ -4,11 +4,12 @@ const KEYMAP = {
   ArrowDown: 'down', KeyS: 'down',
   ArrowUp: 'jump', KeyW: 'jump', KeyZ: 'jump', Space: 'jump', KeyK: 'jump',
   KeyX: 'run', ShiftLeft: 'run', ShiftRight: 'run', KeyJ: 'run',
+  KeyC: 'spin', KeyL: 'spin',
   Enter: 'start',
   KeyP: 'pause', Escape: 'pause',
 };
 
-const ACTIONS = ['left', 'right', 'down', 'jump', 'run', 'start', 'pause'];
+const ACTIONS = ['left', 'right', 'down', 'jump', 'run', 'spin', 'start', 'pause'];
 
 /**
  * Keyboard + on-screen touch buttons, merged into one action snapshot.

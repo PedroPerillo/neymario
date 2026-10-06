@@ -74,6 +74,17 @@ const ACTIONS = [
 ];
 
 const invincible = (g) => { g.player.star = 9999; };
+
+/**
+ * The bot checks level geometry, so keep it from twirling by accident: while
+ * airborne its twirl counts as already used, so a second jump press does what
+ * it did before twirls existed. Twirls are tested on their own.
+ */
+const step = (g, input) => {
+  invincible(g);
+  if (!g.player.onGround) g.player.twirled = true;
+  g.update(input);
+};
 const finished = (g) => g.state === 'flag' || g.state === 'bridge';
 
 /**
@@ -91,10 +102,9 @@ function candidates(game, { burst, horizon }) {
       const inputs = [];
       let alive = true;
       for (let i = 0; i < horizon; i++) {
-        invincible(sim);
         const input = i < hold ? action : cont(sim);
         inputs.push(input);
-        sim.update(input);
+        step(sim, input);
         if (sim.state === 'dying') { alive = false; break; }
         if (sim.state !== 'play') break;
       }
@@ -129,8 +139,7 @@ export function autoplay(game, { maxFrames = 12000, burst = 10, horizon = 90, ma
     const child = cloneGame(node.game);
     child.sfx = () => {};
     for (const input of plan.inputs) {
-      invincible(child);
-      child.update(input);
+      step(child, input);
       if (child.state !== 'play') break;
     }
     if (child.state === 'dying') continue;
@@ -153,8 +162,7 @@ export function autoplay(game, { maxFrames = 12000, burst = 10, horizon = 90, ma
   const path = (found ?? best).inputs;
   for (const input of path) {
     if (game.state !== 'play') break;
-    invincible(game);
-    game.update(input);
+    step(game, input);
   }
   return path.length;
 }

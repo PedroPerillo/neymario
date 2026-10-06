@@ -42,6 +42,12 @@ export const PHYS = {
   rollFrames: 45,
   glideFall: 1.0,
   flapVel: 3.6,
+  // Spin jump (SMW) and mid-air twirl.
+  spinVelDrop: 0.4, // a spin jump launches a little lower than a normal one
+  spinBounce: 3.2, // hop after spin-landing on an enemy
+  twirlLift: 2.0, // the mid-air twirl's little boost
+  twirlFrames: 24,
+  twirlFall: 1.5, // fall speed cap while twirling
   // Trampoline pads: launch speed, and how long the launch floats as if jump were held.
   springLaunch: 6.0,
   springHeldBonus: 0.5,

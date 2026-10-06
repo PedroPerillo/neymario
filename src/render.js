@@ -645,11 +645,23 @@ export function createRenderer(canvas) {
     else if (Math.abs(p.vx) > 0.1) frameName = ['run1', 'run2', 'stand'][Math.floor(p.anim / 7) % 3];
     else frameName = 'stand';
 
+    // Spinning: he whirls round, flipping facing every few frames, with sparkles orbiting him.
+    const twirling = p.spinning && !p.onGround && !p.dead;
+    if (twirling) {
+      frameName = !big && (game.frame >> 2) % 4 === 1 ? 'dead' : 'jump';
+      const cx = p.x + p.w / 2 - cam;
+      const cy = p.y + p.h / 2;
+      for (let k = 0; k < 2; k++) {
+        const a = game.frame / 4 + k * Math.PI;
+        rect(cx + Math.cos(a) * 11, cy + Math.sin(a) * 4, 2, 2, '#ffffff');
+      }
+    }
     const set = big && !p.dead ? NEY_BIG : NEY_SMALL;
     const rows = hair(set[frameName] ?? set.stand);
     const img = sprite(`ney:${big && !p.dead ? 'big' : 'small'}:${frameName}:${palKey}`, rows, pal);
     if (p.size === 'pombo' && !p.onGround && !p.dead) drawWings(p, game, cam, img.height);
-    blit(img, p.x - 2 - cam, p.y + p.h - img.height, { flipX: p.facing < 0 && !p.dead });
+    const facing = twirling ? ((game.frame >> 2) % 2 ? -p.facing : p.facing) : p.facing;
+    blit(img, p.x - 2 - cam, p.y + p.h - img.height, { flipX: facing < 0 && (!p.dead || twirling) && frameName !== 'dead' });
   }
 
   /** Pigeon wings while the feather power is airborne; they beat faster when gliding. */
@@ -922,10 +934,10 @@ export function createRenderer(canvas) {
     text(`TOP- ${String(game.highScore).padStart(6, '0')}`, 128, 143, { size: 6, align: 'center', color: '#bbbbbb' });
     panel(8, 156, 240, 76);
     const lines = [
-      'ARROWS MOVE   Z/SPACE JUMP',
-      'X/SHIFT RUN + SHOOT, RUN+DOWN ROLL',
+      'ARROWS MOVE  Z JUMP (AGAIN: TWIRL)',
+      'X RUN + SHOOT   C SPIN JUMP',
       'DOWN: CROUCH, PIPES, MID-AIR POUND',
-      'JUMP OFF WALLS   P PAUSE  M MUTE',
+      'RUN+DOWN ROLL   P PAUSE  M MUTE',
       'A FAN PARODY - NOT AFFILIATED',
     ];
     lines.forEach((l, i) => text(l, 128, 163 + i * 13, { size: 6, align: 'center', color: i === 4 ? '#999999' : '#ffffff' }));
