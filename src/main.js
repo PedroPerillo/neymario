@@ -58,8 +58,9 @@ window.neymario = game;
 let savedHigh = game.highScore;
 let last = performance.now();
 let acc = 0;
+let reported = false;
 
-function frame(now) {
+function tick(now) {
   acc += Math.min(now - last, 250);
   last = now;
   while (acc >= STEP_MS) {
@@ -75,6 +76,17 @@ function frame(now) {
       // Storage can be unavailable (private mode); the high score just won't persist.
     }
   }
+}
+
+// Schedule the next frame first, so one bad frame (say, a sprite missing a
+// colour) shows a glitch instead of freezing the game for good.
+function frame(now) {
   requestAnimationFrame(frame);
+  try {
+    tick(now);
+  } catch (err) {
+    if (!reported) console.error('Super Neymario frame failed:', err);
+    reported = true;
+  }
 }
 requestAnimationFrame(frame);
