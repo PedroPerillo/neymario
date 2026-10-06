@@ -41,12 +41,15 @@ The kit always stays yellow and green; the power shows on the hair and boots.
 
 ## The world map
 
-An overworld split into four regions, one per World Cup: Brazil 2014 (beaches, Sugarloaf),
-Russia 2018 (snow, onion domes), Qatar 2022 (dunes, the Doha skyline) and the Final
-(a volcanic island with Mbappé Ditador's castle). Walk Neymario between stadiums with ←/→
-and press Enter to play. Winning a match flies a Brazil flag over the stadium and draws
-the path to the next one. Progress is saved in the browser: the title screen offers
-CONTINUE or NEW GAME.
+Real maps of the host countries, one panel per World Cup: Brazil 2014, Western Russia
+2018, Qatar 2022, and France for the Final (Mbappé's home turf). Every stadium sits on
+its real host city. Walk Neymario along the route with ←/→ and press Enter to play.
+Winning a match flies a Brazil flag over the stadium and draws the route to the next
+one; flights between World Cups cross the seams. Progress is saved in the browser:
+the title screen offers CONTINUE or NEW GAME.
+
+Country outlines come from [Natural Earth](https://www.naturalearthdata.com/) (public
+domain), pre-projected into `src/geo.js` by `node tools/build-geo.mjs`.
 
 ## Levels
 
