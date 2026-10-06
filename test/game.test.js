@@ -1031,3 +1031,59 @@ test('a running jump goes higher than a standing one', () => {
   assert.ok(standing > 4 * TILE, `standing jump ${standing}px clears a 4-tall pipe`);
   assert.ok(sprinting > standing + 10, `sprinting ${sprinting}px vs standing ${standing}px`);
 });
+
+test('NES timings: walk speed in ~40 frames, sprint in ~45, a walk-speed stop in ~30', () => {
+  const framesTo = (input, target) => {
+    const g = playing([flatGround()]);
+    settle(g);
+    let n = 0;
+    while (Math.abs(g.player.vx) < target && n < 200) {
+      g.update(input);
+      n++;
+    }
+    return n;
+  };
+  const walk = framesTo({ right: true }, PHYS.walkMax);
+  const sprint = framesTo({ right: true, run: true }, PHYS.runMax);
+  assert.ok(walk >= 36 && walk <= 42, `walk ${walk}`);
+  assert.ok(sprint >= 42 && sprint <= 47, `sprint ${sprint}`);
+  const g = playing([flatGround()]);
+  settle(g);
+  g.player.vx = PHYS.walkMax;
+  let stop = 0;
+  while (g.player.vx > 0 && stop < 100) {
+    g.update({});
+    stop++;
+  }
+  assert.ok(stop >= 28 && stop <= 31, `stop ${stop}`);
+});
+
+test('jump heights match the NES: about 4 tiles standing, 5 tiles at full sprint', () => {
+  const peak = (vx) => {
+    const g = playing([flatGround()]);
+    settle(g);
+    g.player.vx = vx;
+    g.update({ right: vx > 0, run: true });
+    let top = Infinity;
+    for (let i = 0; i < 90; i++) {
+      g.update({ right: vx > 0, run: true, jump: true });
+      top = Math.min(top, g.player.y + g.player.h);
+    }
+    return GROUND_Y - top;
+  };
+  const standing = peak(0);
+  const sprinting = peak(PHYS.runMax);
+  assert.ok(standing >= 64 && standing <= 67, `standing ${standing}`);
+  assert.ok(sprinting >= 79 && sprinting <= 84, `sprinting ${sprinting}`);
+});
+
+test('letting go of run keeps sprint top speed for 10 frames, then eases back to walk speed', () => {
+  const g = playing([flatGround()]);
+  settle(g);
+  g.player.vx = PHYS.runMax;
+  g.update({ right: true, run: true });
+  run(g, { right: true }, 9);
+  assert.equal(g.player.vx, PHYS.runMax, 'still at sprint speed after 9 frames');
+  run(g, { right: true }, 5);
+  assert.ok(g.player.vx < PHYS.runMax, 'slowing down after the timer runs out');
+});

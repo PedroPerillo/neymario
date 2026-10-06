@@ -12,14 +12,16 @@ export const PHYS = {
   walkAccel: 0.0371,
   runAccel: 0.0557,
   releaseDecel: 0.0508, // sliding to a stop after letting go
-  skidDecel: 0.1016,
+  skidFactor: 2, // skidding brakes at twice the current acceleration
   skidTurn: 0.5625, // below this while skidding, he turns right round
-  walkMax: 1.5625,
-  runMax: 2.5625,
+  walkMax: 1.5,
+  runMax: 2.5,
+  runTimer: 10, // frames he keeps sprint top speed after letting go of run
+  airRunSpeed: 1.5625, // in the air, sprint top speed and acceleration apply only above this
   // Jump launch and gravity depend on horizontal speed at take-off: [speed below, launch, gravity holding jump, gravity otherwise].
   jumps: [
     { below: 1.0, vel: 4.0, hold: 0.125, fall: 0.4375 },
-    { below: 2.3125, vel: 4.0, hold: 0.1172, fall: 0.375 },
+    { below: 1.5625, vel: 4.0, hold: 0.1172, fall: 0.375 },
     { below: Infinity, vel: 5.0, hold: 0.1563, fall: 0.5625 },
   ],
   // In mid-air you keep momentum: turning back is slower than on the ground.

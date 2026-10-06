@@ -286,7 +286,7 @@ export class Game {
       // the Miojo roll, the feather's glide and mid-air flap.
       pound: 0, wallDir: 0, wallGrace: 0, wallLock: 0, wallLockDir: 0,
       rolling: 0, gliding: false, flaps: 1, ridingId: null, springFloat: 0,
-      jump: 0, airMax: PHYS.walkMax, takeoffSpeed: 0,
+      jump: 0, takeoffSpeed: 0, runTimer: 0,
     };
   }
 
@@ -421,14 +421,12 @@ export class Game {
         const speed = Math.abs(p.vx);
         p.jump = PHYS.jumps.findIndex((j) => speed < j.below);
         p.vy = -PHYS.jumps[p.jump].vel;
-        p.airMax = speed > PHYS.walkMax ? PHYS.runMax : PHYS.walkMax;
         p.takeoffSpeed = speed;
         p.onGround = false;
         launched = true;
         this.sfx(p.size === 'small' ? 'jump' : 'jumpBig');
       } else if (p.wallGrace > 0) {
         p.jump = 1;
-        p.airMax = PHYS.runMax;
         p.vy = -PHYS.jumps[1].vel;
         p.vx = -p.wallDir * PHYS.wallJumpX;
         p.facing = -p.wallDir;
@@ -546,8 +544,10 @@ export class Game {
     if (p.onGround) {
       // Gravity for falling off a ledge follows the current speed, like a jump would.
       p.jump = PHYS.jumps.findIndex((jp) => speed < jp.below);
-      p.airMax = speed > PHYS.walkMax ? PHYS.runMax : PHYS.walkMax;
       p.takeoffSpeed = speed;
+      // Like the original's RunningTimer: sprint speed lingers briefly after letting go of run.
+      if (inp.run) p.runTimer = PHYS.runTimer;
+      else if (p.runTimer > 0) p.runTimer--;
     }
     if (p.rolling) {
       p.vx = p.facing * PHYS.rollSpeed;
@@ -565,13 +565,14 @@ export class Game {
     if (p.onGround) p.facing = dir;
     const turning = p.vx * dir < 0;
     if (p.onGround) {
-      const max = inp.run ? PHYS.runMax : PHYS.walkMax;
+      const sprinting = inp.run || p.runTimer > 0;
+      const max = sprinting ? PHYS.runMax : PHYS.walkMax;
+      const accel = (sprinting ? PHYS.runAccel : PHYS.walkAccel) * grip;
       if (turning) {
         p.skid = true;
-        p.vx += dir * PHYS.skidDecel * (ice ? PHYS.iceSkid : 1);
+        p.vx += dir * accel * PHYS.skidFactor * (ice ? PHYS.iceSkid : 1);
         if (Math.abs(p.vx) < PHYS.skidTurn && !ice) p.vx = 0;
       } else if (speed < max) {
-        const accel = (inp.run ? PHYS.runAccel : PHYS.walkAccel) * grip;
         p.vx = dir * Math.min(Math.max(speed, PHYS.minWalk) + accel, max);
       } else {
         // Let go of run while sprinting: ease back down to walking speed.
@@ -579,12 +580,14 @@ export class Game {
       }
       return;
     }
-    // Airborne: speed up to the take-off cap, or brake gently when turning back.
+    // Airborne: sprint speed and acceleration only while already moving fast; brake gently when turning back.
+    const fast = speed >= PHYS.airRunSpeed;
     if (turning) {
-      const brake = speed >= PHYS.walkMax ? PHYS.runAccel : p.takeoffSpeed >= 1.8125 ? PHYS.airBrakeFast : PHYS.walkAccel;
+      const brake = fast ? PHYS.runAccel : p.takeoffSpeed >= 1.8125 ? PHYS.airBrakeFast : PHYS.walkAccel;
       p.vx += dir * brake;
-    } else if (speed < p.airMax) {
-      p.vx = dir * Math.min(speed + (speed >= PHYS.walkMax ? PHYS.runAccel : PHYS.walkAccel), p.airMax);
+    } else {
+      const max = fast ? PHYS.runMax : PHYS.walkMax;
+      if (speed < max) p.vx = dir * Math.min(speed + (fast ? PHYS.runAccel : PHYS.walkAccel), max);
     }
   }
 
@@ -634,6 +637,7 @@ export class Game {
         p.y = top - p.h;
         p.vy = -(PHYS.springLaunch + (this.input.jump ? PHYS.springHeldBonus : 0));
         p.springFloat = PHYS.springFloat;
+        p.jump = 0; // the pad's launch height doesn't depend on run speed
         p.pound = 0;
         e.squash = 10;
         this.sfx('spring');
