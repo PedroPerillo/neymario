@@ -46,12 +46,13 @@ export class Game {
     this.sfx = sfx;
     this.onSave = onSave;
     // Progress through the World Cups: how far along the map is open, and which matches were won.
-    this.save = { unlocked: 0, cleared: [], ...(save ?? {}) };
+    this.levels = levels;
+    this.save = Game.cleanSave(save, levels.length);
     this.titleChoice = 0;
+    this.confirmErase = false;
     this.nextId = 1;
     this.checkpointFor = null;
     this.rngState = seed >>> 0;
-    this.levels = levels;
     this.highScore = highScore;
     this.prev = { ...NO_INPUT };
     this.input = { ...NO_INPUT };
@@ -64,6 +65,13 @@ export class Game {
     this.loadLevel(0);
     this.map = this.mapAt(0);
     this.setState('title');
+  }
+
+  /** Saves come from localStorage, so never trust their shape. */
+  static cleanSave(save, levelCount) {
+    const unlocked = Number.isInteger(save?.unlocked) ? Math.max(0, Math.min(save.unlocked, levelCount - 1)) : 0;
+    const cleared = Array.isArray(save?.cleared) ? save.cleared.filter((id) => typeof id === 'string') : [];
+    return { unlocked, cleared, ...(save?.complete === true ? { complete: true } : {}) };
   }
 
   /** Seeded mulberry32. The state lives on the game so a copied game replays identically. */
@@ -83,6 +91,7 @@ export class Game {
   toTitle() {
     this.loadLevel(0);
     this.titleChoice = 0;
+    this.confirmErase = false;
     this.setState('title');
   }
 
@@ -102,11 +111,24 @@ export class Game {
   }
 
   titleOptions() {
+    if (this.confirmErase) return ['NO', 'YES'];
     return this.save.unlocked > 0 ? ['CONTINUE', 'NEW GAME'] : ['START'];
   }
 
   chooseTitle(option) {
     if (option === 'NEW GAME') {
+      // Starting over wipes the save, so ask first (defaulting to NO).
+      this.confirmErase = true;
+      this.titleChoice = 0;
+      return;
+    }
+    if (option === 'NO') {
+      this.confirmErase = false;
+      this.titleChoice = 1;
+      return;
+    }
+    if (option === 'YES') {
+      this.confirmErase = false;
       this.save = { unlocked: 0, cleared: [] };
       this.onSave(this.save);
     }
@@ -151,8 +173,9 @@ export class Game {
       return;
     }
     const last = Math.min(this.save.unlocked, this.levels.length - 1, NODES.length - 1);
-    if (inp.right && m.node < last) this.startMapWalk(m.node + 1);
-    else if (inp.left && m.node > 0) this.startMapWalk(m.node - 1);
+    // One press, one stadium: easier to stop exactly where you want.
+    if (pressed('right') && m.node < last) this.startMapWalk(m.node + 1);
+    else if (pressed('left') && m.node > 0) this.startMapWalk(m.node - 1);
     else if (pressed('start') || pressed('jump')) {
       this.loadLevel(m.node);
       this.setState('intro', 150);
@@ -234,13 +257,20 @@ export class Game {
   /** Restart from the halfway flag: stand on the ground there, skip enemies already behind. */
   placeAtCheckpoint() {
     const p = this.player;
-    const col = this.level.checkpoint;
-    let row = 0;
-    while (row < GROUND_ROW && !isSolidChar(tileAt(this.level, col, row))) row++;
-    p.x = col * TILE + 2;
-    p.y = row * TILE - p.h;
+    p.x = this.level.checkpoint * TILE + 2;
+    p.y = this.checkpointFloor() * TILE - p.h;
+    p.invuln = INVULN_FRAMES;
     this.camX = Math.max(0, Math.min(p.x - 100, this.level.width * TILE - SCREEN_W));
-    this.pending = this.pending.filter((sp) => sp.x >= this.camX);
+    // Opponents already passed stay gone, and none spawn right on top of him.
+    this.pending = this.pending.filter((sp) => sp.x >= this.camX && !(ENEMIES.has(sp.type) && sp.x < p.x + 4 * TILE));
+  }
+
+  /** Row whose top the checkpoint stands on: the floor at that column (climbing any blocks stacked on it), never the roof. */
+  checkpointFloor() {
+    const col = this.level.checkpoint;
+    let row = GROUND_ROW;
+    while (row > 0 && isSolidChar(tileAt(this.level, col, row - 1))) row--;
+    return row;
   }
 
   makePlayer() {
@@ -271,12 +301,13 @@ export class Game {
 
     switch (this.state) {
       case 'title': {
+        // Arrows (↑ is the jump key) only move the cursor; only Start/Enter confirms.
         const options = this.titleOptions();
-        if (pressed('down') || pressed('left') || pressed('right')) {
+        if (pressed('down') || pressed('left') || pressed('right') || pressed('jump')) {
           this.titleChoice = (this.titleChoice + 1) % options.length;
           this.sfx('tick');
         }
-        if (pressed('start') || pressed('jump')) this.chooseTitle(options[this.titleChoice % options.length]);
+        if (pressed('start')) this.chooseTitle(options[this.titleChoice % options.length]);
         break;
       }
       case 'map':
@@ -1139,7 +1170,8 @@ export class Game {
     if (e.state === 'flip' || e.state === 'flat') return;
     const p = this.player;
     // The trophy, a roll and a ground pound all bowl defenders over on contact.
-    if (p.star > 0 || p.rolling > 0 || p.pound < 0) {
+    const spiky = ENEMY_INFO[e.type]?.spiky;
+    if (p.star > 0 || p.rolling > 0 || (p.pound < 0 && !spiky)) {
       this.flipKill(e, 200);
       return;
     }

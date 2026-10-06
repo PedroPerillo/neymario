@@ -542,8 +542,7 @@ export function createRenderer(canvas) {
   function drawCheckpoint(game, cam) {
     const col = game.level.checkpoint;
     if (col === null || col === undefined || game.areaName !== 'main') return;
-    let row = 0;
-    while (row < GROUND_ROW && ' C'.includes(game.level.tiles[row][col])) row++;
+    const row = game.checkpointFloor();
     const x = col * TILE + 7 - cam;
     if (x < -20 || x > SCREEN_W + 20) return;
     const ground = row * TILE;
@@ -912,6 +911,7 @@ export function createRenderer(canvas) {
     blit(sprite('feather', FEATHER, FEATHER_PAL), 132, 100);
     blit(sprite('boss:false', BOSS.closed, BOSS_PAL, 32), 156, 84);
     const options = game.titleOptions();
+    if (game.confirmErase) text('ERASE YOUR SAVE?', 128, 108, { size: 6, align: 'center', color: '#ff6060' });
     options.forEach((opt, i) => {
       const y = options.length > 1 ? 120 + i * 11 : 126;
       const chosen = i === game.titleChoice % options.length;

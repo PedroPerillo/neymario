@@ -487,7 +487,7 @@ export const LEVELS = [
     width: 214,
     build(L) {
       L.ground(0, 26).place(10, 9, '?M?').enemy('defender', 16).enemy('defender', 18).warpPipe(22, 2);
-      L.lift(28, 11, 3, { dx: 9 });
+      L.lift(28, 11, 3, { dx: 6 });
       L.ground(41, 70).cannon(46).enemy('matryoshka', 52).place(56, 9, 'B?B').place(57, 5, 'M');
       L.enemy('referee', 62).place(66, 12, 'S').cannon(66, 11);
       L.lift(72, 10, 3, { dx: 6 });

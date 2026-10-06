@@ -129,3 +129,50 @@ for (const def of WORLD_CUP_MATCHES) {
     assert.equal(p.y + p.h, game.level.exit.top * TILE);
   });
 }
+
+for (const def of LEVELS.filter((d) => d.build && buildLevel(d).checkpoint !== null)) {
+  test(`${def.id}: the checkpoint respawn stands on the floor and survives a minute of standing still`, () => {
+    const game = new Game({ levels: LEVELS });
+    game.newGame(LEVELS.indexOf(def));
+    game.checkpointFor = game.levelIndex;
+    game.loadLevel(game.levelIndex);
+    game.setState('play');
+    const p = game.player;
+    const col = game.level.checkpoint;
+    const feetRow = Math.round((p.y + p.h) / TILE);
+    assert.ok(feetRow >= GROUND_ROW - 4, `standing on row ${feetRow}, not the roof`);
+    for (let row = 0; row < feetRow; row++) {
+      if (row > Math.floor(p.y / TILE) - 1) assert.equal(game.level.tiles[row][col] === ' ' || game.level.tiles[row][col] === 'C', true, 'clear above him');
+    }
+    for (let i = 0; i < 60; i++) game.update({});
+    assert.equal(game.state, 'play', 'still alive after 60 idle frames');
+  });
+}
+
+for (const def of LEVELS) {
+  const lifts = buildLevel(def).spawns.filter((s) => s.type === 'lift');
+  if (!lifts.length) continue;
+  test(`${def.id}: standing still on every lift is safe for two full swings`, () => {
+    for (const spec of lifts) {
+      const game = new Game({ levels: LEVELS });
+      game.newGame(LEVELS.indexOf(def));
+      game.setState('play');
+      game.camX = Math.max(0, spec.x - 100);
+      game.pending = game.pending.filter((s) => s.type === 'lift');
+      game.spawnPending();
+      const lift = game.entities.find((e) => e.type === 'lift' && e.x0 === spec.x && e.y0 === spec.y);
+      const p = game.player;
+      p.x = lift.x + lift.w / 2 - p.w / 2;
+      p.y = lift.y - p.h;
+      p.vy = 0;
+      p.ridingId = lift.id;
+      p.star = 1e9;
+      const period = Math.ceil((2 * Math.PI) / lift.omega);
+      for (let i = 0; i < 2 * period && game.state === 'play'; i++) {
+        p.star = 1e9;
+        game.update({});
+      }
+      assert.equal(game.state, 'play', `fell off the lift at column ${spec.x / TILE}`);
+    }
+  });
+}

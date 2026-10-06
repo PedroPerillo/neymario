@@ -683,6 +683,10 @@ test('NEW GAME wipes saved progress; winning a match saves it', () => {
   g.update({ down: true });
   assert.equal(g.titleChoice, 1);
   g.update({ start: true });
+  assert.deepEqual(g.titleOptions(), ['NO', 'YES'], 'asks before erasing');
+  assert.equal(g.save.unlocked, 1, 'nothing erased yet');
+  g.update({ down: true });
+  g.update({ start: true });
   assert.equal(g.save.unlocked, 0);
   assert.deepEqual(saves.at(-1), { unlocked: 0, cleared: [] });
   g.update({});
@@ -917,4 +921,58 @@ test('stomping Mbappé hurts him and bounces Neymario; while he reels he is harm
   g.player.vy = 0;
   g.update({});
   assert.equal(g.state, 'play', 'touching him while he reels does not hurt');
+});
+
+// ── review fixes for the map / levels update ──
+
+test('arrow keys on the title screen never touch the save (↑ is the jump key)', () => {
+  const saves = [];
+  const g = new Game({ save: { unlocked: 9, cleared: ['2014-1'] }, onSave: (sv) => saves.push(sv) });
+  for (const key of ['down', 'jump', 'down', 'jump', 'left', 'right', 'jump']) {
+    g.update({ [key]: true });
+    g.update({});
+  }
+  assert.equal(g.state, 'title');
+  assert.equal(saves.length, 0);
+  assert.equal(g.save.unlocked, 9);
+});
+
+test('NO on the erase prompt keeps the save', () => {
+  const saves = [];
+  const g = new Game({ save: { unlocked: 3, cleared: [] }, onSave: (sv) => saves.push(sv) });
+  g.update({ down: true });
+  g.update({ start: true });
+  g.update({});
+  g.update({ start: true });
+  assert.equal(g.confirmErase, false);
+  assert.equal(saves.length, 0);
+  assert.equal(g.save.unlocked, 3);
+});
+
+test('a broken save from storage is cleaned up instead of crashing', () => {
+  for (const bad of [{ unlocked: 'x', cleared: 'oops' }, { unlocked: 999, cleared: [1, '2014-1'] }, 'junk', null]) {
+    const g = new Game({ save: bad });
+    assert.ok(Array.isArray(g.save.cleared));
+    assert.ok(Number.isInteger(g.save.unlocked) && g.save.unlocked >= 0 && g.save.unlocked < g.levels.length);
+  }
+});
+
+test('on the map, one press walks exactly one stadium', () => {
+  const g = new Game({ save: { unlocked: 5, cleared: [] } });
+  g.enterMap(0);
+  run(g, { right: true }, 400);
+  assert.equal(g.map.node, 1);
+});
+
+test('ground-pounding a studs-up boot hurts, like stomping it', () => {
+  const g = playing([withEnemy('studs', 6)]);
+  settle(g);
+  const boot = find(g, 'studs');
+  boot.vx = 0;
+  g.player.x = boot.x;
+  g.player.y = boot.y - 60;
+  g.player.onGround = false;
+  g.update({ down: true });
+  run(g, {}, 40);
+  assert.equal(g.state, 'dying');
 });
